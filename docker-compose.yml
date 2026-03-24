@@ -1,0 +1,17 @@
+services:
+  sqlserver:
+    image: mcr.microsoft.com/azure-sql-edge
+    container_name: sqlserver
+    environment:
+      - ACCEPT_EULA=1
+      - MSSQL_SA_PASSWORD=StrongPass123
+    ports:
+      - "1433:1433"
+    restart: always
+
+  mongodb:
+    image: mongo:6
+    container_name: finance_mongo
+    ports:
+      - "27017:27017"
+    restart: always
