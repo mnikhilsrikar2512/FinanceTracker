@@ -1,3 +1,4 @@
+"""Category repository: data access helpers for Category model."""
 from sqlalchemy.orm import Session
 from app.models.category import Category
 

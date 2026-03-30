@@ -1,3 +1,1 @@
-from .user import User
-from .category import Category
-from .transaction import Transaction
+"""Model package initializer with docstrings for clarity."""

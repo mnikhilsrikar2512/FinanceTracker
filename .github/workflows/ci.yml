@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      docker: {}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential unixodbc-dev
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Start DBs (SQL Server + Mongo)
+        run: |
+          docker-compose up -d
+
+      - name: Prepare environment for tests
+        run: |
+          echo "DB environment prepared."
+          cat > .env << 'ENV'
+DB_SERVER=localhost
+DB_PORT=1433
+DB_NAME=finance_db
+DB_USER=sa
+DB_PASSWORD=StrongPass123
+MONGO_URI=mongodb://localhost:27017
+MONGO_DB=finance_logs
+JWT_SECRET=ci-secret
+ENV
+        shell: bash
+
+      - name: Seed database
+        run: |
+          python seed_data.py
+        env:
+          DB_SERVER: localhost
+          DB_PORT: 1433
+          DB_NAME: finance_db
+          DB_USER: sa
+          DB_PASSWORD: StrongPass123
+
+      - name: Run tests
+        run: |
+          pytest -q
+
+      - name: Teardown
+        if: always()
+        run: |
+          docker-compose down

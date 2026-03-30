@@ -1,3 +1,9 @@
+"""Configuration module for Finance Tracker API.
+
+Loads environment-specific settings and exposes them via a single
+`settings` object for other modules to import.
+"""
+
 import os
 from dotenv import load_dotenv
 
