@@ -11,7 +11,6 @@ import uuid
 import time
 from pathlib import Path
 
-from app.core.database import engine, Base
 import app.models
 from app.routers import analytics_router
 
@@ -128,8 +127,6 @@ app.add_middleware(APIVersionRewriteMiddleware)
 
 app.add_middleware(RequestIDMiddleware)
 app.add_middleware(RateLimiter, requests_per_minute=60)
-
-Base.metadata.create_all(bind=engine)
 
 setup_logging()
 

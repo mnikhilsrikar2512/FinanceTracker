@@ -1,74 +1,100 @@
 # Finly
 
-Finly is a finance-tracking web app with a FastAPI backend and a static frontend served from the same app. It supports two main experiences:
+Finly is a role-based finance tracking platform with a FastAPI backend and a static frontend served by the same app. It supports:
 
-- `User workspace`: transactions, reports, budgets, and personal activity
-- `Admin workspace`: users, logs, system transactions, categories, and system analytics
+- `User workspace`: dashboard, transactions, budgets, reports, notifications, profile
+- `Admin workspace`: dashboard, users, system transactions, logs, reports, categories, profile
 
-The app now also includes a proper landing flow:
+The project now uses a single database only: `SQL Server`. Core data and audit logs both live there.
 
-- `/` -> product landing page
+## Product Overview
+
+### Public pages
+
+- `/` -> landing page
 - `/login.html` -> login
 - `/signup.html` -> signup
-- `/support.html` -> support and customer-help page
+- `/support.html` -> support and FAQ page
 - `/forgot-password.html` -> request password reset code
 - `/reset-password.html` -> verify code and set a new password
 
-## What’s In This Repo
+### User workspace
 
-- `app/` -> FastAPI API, auth, models, routers, services, repositories
-- `Project/` -> frontend HTML, CSS, and JavaScript
-- `docker-compose.yml` -> local SQL Server + MongoDB services
-- `Makefile` -> common local commands
-- `PAGES_GUIDE.md` -> plain-language guide to every page and section in the product
+- Dashboard with balance, savings, budget health, spending charts, and quick search
+- Transactions with filters, sorting, archive/restore, export, and bulk actions
+- Budgets with progress tracking and threshold updates at `50%`, `75%`, `100%`, and over budget
+- Reports with charts, insights, CSV export, and PDF export
+- Notifications / activity history with readable audit summaries
+- Profile page for updating account details, password, logout, and account deletion
 
-## Stack
+### Admin workspace
+
+- Admin dashboard with KPI cards, activity feed, and quick user search
+- User management with block/unblock controls
+- System transactions with filters, archive/restore/delete, and bulk actions
+- Admin logs with filters, pagination, and detailed activity modal
+- System analytics with role-specific CSV and PDF exports
+- Category oversight
+- Admin profile page
+
+## Tech Stack
 
 - FastAPI
 - SQLAlchemy
 - SQL Server / Azure SQL Edge
-- MongoDB
 - PyODBC
-- JWT auth
-- Vanilla HTML/CSS/JS frontend
+- JWT authentication
+- Vanilla HTML, CSS, and JavaScript
 - Chart.js
+- Nodemailer for Gmail-friendly password reset delivery
 
-## Product Areas
+## Repo Structure
 
-### User side
+- `app/` -> backend API, routers, services, repositories, models, auth, config
+- `Project/` -> frontend HTML, CSS, and JavaScript
+- `scripts/` -> helper scripts such as database initialization and email bridge
+- `tests/` -> pytest coverage for key backend behavior
+- `docker-compose.yml` -> local SQL Server service
+- `Makefile` -> local development commands
+- `PAGES_GUIDE.md` -> page-by-page product guide
+- `codes.sql` -> SQL schema/reference script
 
-- Landing page, login, signup, support, and password recovery
-- Dashboard
-- Transactions with filtering, sorting, export, archive/delete
-- Reports and charts
-- Budgets with progress tracking
-- Notifications / activity history
+## Architecture
 
-### Admin side
+The backend follows a layered structure:
 
-- Admin dashboard
-- User management
-- System transactions
-- Category oversight
-- Activity logs
-- System analytics via `/api/v1/admin/analytics`
+- `routers` -> HTTP endpoints
+- `services` -> business logic
+- `repositories` -> database queries and persistence
+- `models` -> SQLAlchemy entities
+- `schemas` -> request/response validation
 
-## API Shape
+The frontend is a static app served by FastAPI. Shared UI behavior is centralized in:
 
-The API is versioned under `/api/v1`.
+- `Project/styles.css`
+- `Project/js/core/utils.js`
+- `Project/js/layout/sidebar.js`
+- `Project/js/layout/header-actions.js`
+- `Project/js/visuals/charts.js`
+- `Project/js/pages/`
+
+## API
+
+All primary endpoints are exposed under `/api/v1`.
 
 Examples:
 
 - `/api/v1/auth/login`
 - `/api/v1/users/me`
 - `/api/v1/transactions`
-- `/api/v1/summary/insights`
 - `/api/v1/budgets`
+- `/api/v1/logs`
+- `/api/v1/summary/insights`
 - `/api/v1/admin/analytics`
 
-Legacy top-level paths such as `/auth/...` and `/transactions/...` are redirected to `/api/v1/...`.
+Legacy top-level routes such as `/auth/...` and `/transactions/...` are redirected to `/api/v1/...`.
 
-## Response Format
+### Common response shape
 
 Most endpoints return:
 
@@ -80,7 +106,7 @@ Most endpoints return:
 }
 ```
 
-Paginated endpoints include metadata such as:
+Paginated responses include metadata such as:
 
 - `total`
 - `limit`
@@ -91,346 +117,282 @@ Paginated endpoints include metadata such as:
 - `has_prev`
 - `filters`
 
-## Key Backend Areas
-
-- `app/main.py`
-  mounts all routers under `/api/v1` and serves the frontend statically
-- `app/routers/`
-  HTTP endpoints
-- `app/services/`
-  business rules
-- `app/repositories/`
-  data access
-- `app/models/`
-  SQLAlchemy models
-- `app/core/`
-  auth, config, database, rate limiting, exception handling, Mongo integration
-
 ## Local Requirements
 
 Before running locally, make sure you have:
 
 - Python 3.10+
-- ODBC Driver 18 for SQL Server
 - Docker and Docker Compose
+- ODBC Driver 18 for SQL Server
+- Node.js
 
 ## Environment Variables
 
-The app reads configuration from `.env`.
+Configuration is loaded from `.env`.
 
-Important values:
+### Database
 
 - `DB_SERVER`
 - `DB_PORT`
 - `DB_NAME`
 - `DB_USER`
 - `DB_PASSWORD`
-- `MONGO_URI`
-- `MONGO_DB`
+
+### Auth
+
 - `JWT_SECRET`
+
+### Email / password reset
+
 - `SMTP_HOST`
 - `SMTP_PORT`
 - `SMTP_USER`
 - `SMTP_PASSWORD`
 - `FROM_EMAIL`
+- `FROM_NAME`
+
+Optional fallback values:
+
 - `BREVO_API_KEY`
 - `BREVO_BASE_URL`
 - `BREVO_FROM_EMAIL`
 - `BREVO_FROM_NAME`
+
+Development helpers:
+
 - `APP_ENV`
 - `DEBUG_RESET_CODES`
 
-Example `.env` values depend on your local setup. The repo already includes `.env.example` for reference.
+See [`.env.example`](/Users/bhargavnikhil/Desktop/finance_tracker/.env.example) for a starting point.
 
-Password reset emails now prefer SMTP, which means a Gmail account plus a Gmail app password works well for local and demo use. Brevo remains available as a fallback if SMTP is not configured or delivery fails.
+### Gmail setup
 
-The app now also includes a small Node-based mail bridge using `nodemailer`, so Gmail delivery works cleanly with the installed Node dependency while the main API remains in FastAPI/Python.
+The current reset flow is designed to work well with a Gmail account plus an app password.
 
-Gmail setup notes:
+Recommended values:
 
-- set `SMTP_HOST=smtp.gmail.com`
-- set `SMTP_PORT=587`
-- set `SMTP_USER` to your Gmail address
-- set `SMTP_PASSWORD` to your Gmail app password
-- spaces in copied Gmail app passwords are normalized automatically
-- set `FROM_EMAIL` to the same Gmail address unless you have another verified sender
+```env
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your_email@gmail.com
+SMTP_PASSWORD=your_app_password
+FROM_EMAIL=your_email@gmail.com
+FROM_NAME=Finly Support
+```
 
-Brevo setup notes:
+Notes:
 
-- `BREVO_API_KEY` is only needed if you want Brevo as a fallback or alternate provider
-- `BREVO_BASE_URL` defaults to `https://api.brevo.com`
-- `BREVO_FROM_EMAIL` controls the sender email shown to users
-- `BREVO_FROM_NAME` controls the sender display name
+- copied Gmail app passwords with spaces are normalized automatically
+- if Node and `nodemailer` are available, the app can use the bundled Node mail bridge
+- SMTP remains the main delivery path
+- Brevo can be configured as a fallback
 
 ## Running Locally
 
-### 1. Start infrastructure
+### 1. Start SQL Server
 
 ```bash
 docker compose up -d
 ```
 
-This starts:
+This starts SQL Server on port `1433`.
 
-- SQL Server on `1433`
-- MongoDB on `27017`
-
-### 2. Install dependencies
+### 2. Install Python dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. Optional: reseed demo data
+### 3. Initialize the database schema
+
+```bash
+make init-db
+```
+
+### 4. Optional: load fresh demo data
 
 ```bash
 make seed-demo
 ```
 
-Use this when you want a fresh demo state with sample users, admin data, transactions, budgets, and logs.
+This clears the current local data and reseeds users, categories, transactions, budgets, and audit logs.
 
-### 4. Run the app
-
-Recommended:
+### 5. Start the app
 
 ```bash
 make dev
 ```
 
+This will:
+
+- install Python dependencies
+- initialize the schema
+- run Uvicorn on port `8000`
+
 Equivalent direct command:
 
 ```bash
+python scripts/init_db.py
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 Then open:
 
-- [http://127.0.0.1:8000](http://127.0.0.1:8000) for the landing page
-- [http://127.0.0.1:8000/login.html](http://127.0.0.1:8000/login.html) for login
-- [http://127.0.0.1:8000/support.html](http://127.0.0.1:8000/support.html) for the support page
+- [http://127.0.0.1:8000](http://127.0.0.1:8000)
+- [http://127.0.0.1:8000/login.html](http://127.0.0.1:8000/login.html)
 
-## Notes About `make dev`
+## Make Commands
 
-The current `Makefile` includes a working `make dev` flow that:
+Available commands:
 
-- installs dependencies
-- runs the FastAPI server with reload
+```bash
+make init-db
+make dev
+make seed-demo
+make test
+make share
+```
 
-Use `make seed-demo` when you want to wipe and reseed local demo data explicitly.
+## Demo Credentials
 
-Other available commands:
+### Admin
+
+- `admin@financetracker.com`
+- `admin123`
+
+### Main user
+
+- `john@example.com`
+- `john123`
+
+### Other demo users
+
+- `alice@example.com` / `alice123`
+- `bob@example.com` / `bob123`
+- `charlie@example.com` / `charlie123`
+- `diana@example.com` / `diana123`
+- `ethan@example.com` / `ethan123`
+- `gina@example.com` / `gina123`
+- `harish@example.com` / `harish123`
+- `jack@example.com` / `jack123`
+
+### Blocked users for admin testing
+
+- `farah@example.com` / `farah123`
+- `irene@example.com` / `irene123`
+
+## Key Product Behaviors
+
+### Reports
+
+- user and admin reports are intentionally different
+- user reports focus on personal spending and trends
+- admin reports focus on system-wide transaction summaries and user activity
+- both CSV and PDF exports include structured summaries instead of raw dumps
+
+### Budgets
+
+- budgets are user-specific
+- budget health is surfaced in both the budgets page and the dashboard
+- threshold states are tracked at:
+  - `50%`
+  - `75%`
+  - `100%`
+  - `over budget`
+
+### Logs and notifications
+
+- audit logs are stored in SQL Server
+- user notifications are powered by the same audit system
+- activity is presented with human-readable labels and summaries
+- transaction, budget, profile, login, and admin management activity is recorded
+
+### Password recovery
+
+- users request a verification code on `forgot-password.html`
+- they complete reset on `reset-password.html`
+- reset emails are delivered through Gmail-friendly SMTP setup
+
+## Testing
+
+Run automated tests with:
 
 ```bash
 make test
-make seed-demo
-make share
 ```
 
-## Local Testing Flow
+For a manual smoke test, check:
 
-For a normal local test session, use:
-
-```bash
-docker compose up -d
-make seed-demo
-make dev
-```
-
-If you do not want to reseed data, skip `make seed-demo`.
-
-## Troubleshooting
-
-### Port 8000 already in use
-
-If `make dev` fails with:
-
-```text
-ERROR: [Errno 48] Address already in use
-```
-
-check what is listening on port `8000`:
-
-```bash
-lsof -nP -iTCP:8000 -sTCP:LISTEN
-```
-
-If you want to stop that process, run:
-
-```bash
-kill <PID>
-```
-
-Then start Finly again:
-
-```bash
-make dev
-```
-
-If you want to keep the existing process and run Finly on another port instead:
-
-```bash
-uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
-```
-
-Then open:
-
-- [http://127.0.0.1:8001](http://127.0.0.1:8001)
+- landing page
+- support page
+- login/signup
+- forgot-password/reset-password
+- user dashboard
+- transactions
+- budgets
+- reports
+- notifications
+- admin dashboard
+- admin users
+- admin transactions
+- admin logs
+- admin reports
 
 ## Sharing With Ngrok
 
-Once the app is running on port `8000`, you can expose it publicly:
+Once the app is running on port `8000`, expose it publicly with:
 
 ```bash
 make share
 ```
 
-That runs:
+This runs:
 
 ```bash
 ngrok http 8000
 ```
 
-Because the frontend is served by the same FastAPI app, a single ngrok URL is enough for both UI and API.
+Because FastAPI serves both the frontend and API, one URL is enough.
 
-## Main Frontend Pages
+## Troubleshooting
 
-### Public
+### Port `8000` already in use
 
-- `Project/index.html` -> landing page
-- `Project/login.html` -> login
-- `Project/signup.html` -> signup
-- `Project/forgot-password.html` -> request reset code
-- `Project/reset-password.html` -> reset password with code
-- `Project/support.html` -> support and customer-help page
-
-### User workspace
-
-- `Project/app.html`
-- `Project/transactions.html`
-- `Project/reports.html`
-- `Project/budgets.html`
-- `Project/logs.html`
-- `Project/profile.html`
-
-### Admin workspace
-
-- `Project/admin.html`
-- `Project/admin-users.html`
-- `Project/admin-transactions.html`
-- `Project/admin-logs.html`
-- `Project/categories.html`
-- `Project/admin-profile.html`
-
-## Main API Areas
-
-### Auth
-
-- signup
-- login
-- change password
-- forgot password
-- reset password
-
-Auth behavior notes:
-
-- login accepts email-based sign-in only
-- emails are normalized to lowercase and trimmed before lookup/storage
-- signup, change-password, and reset-password require stronger passwords
-- password reset requests use cooldowns and throttling
-- reset codes are emailed through SMTP first
-- Gmail SMTP works with a Gmail account plus app password
-- Brevo remains available as a fallback if SMTP is unavailable
-
-### Users
-
-- current user profile
-- update profile
-- self-service profile page
-- delete account
-
-### Transactions
-
-- list, create, update, delete
-- soft delete / archive
-- hard delete
-- filtering
-- sorting
-- CSV export
-
-### Analytics
-
-- user summaries
-- monthly summaries
-- category summaries
-- dashboard insights
-- admin system analytics
-
-### Budgets
-
-- create budget
-- list budgets
-- budget summary
-- budget progress
-- update and delete budget
-
-### Logs
-
-- personal activity logs
-- admin operational logs
-
-## Current UX Flow
-
-The app is designed so first-time visitors do not land directly on login anymore.
-
-Recommended flow:
-
-1. Open the landing page
-2. Use the support page if the person is new or needs guidance
-3. Go to login or signup
-4. If needed, use forgot-password and then reset-password
-5. Enter the user or admin workspace based on role
-
-## Developer Notes
-
-- The frontend is static and lives in `Project/`
-- The backend serves that frontend from `app/main.py`
-- Dark mode, shared shell behavior, charts, page-help tooltips, and common utilities are centralized in:
-  - `Project/styles.css`
-  - `Project/js/core/utils.js`
-  - `Project/js/layout/sidebar.js`
-  - `Project/js/layout/header-actions.js`
-  - `Project/js/visuals/charts.js`
-
-## Testing
-
-Run:
+Check the process using the port:
 
 ```bash
-make test
+lsof -nP -iTCP:8000 -sTCP:LISTEN
 ```
 
-If tests have been removed or are in flux in your local worktree, use targeted manual smoke testing on:
+Stop it:
 
-- landing
-- support
-- login/signup
-- forgot-password/reset-password
-- user dashboard
-- transactions
-- reports
-- budgets
-- admin dashboard
-- admin analytics
+```bash
+kill <PID>
+```
+
+Or run Finly on a different port:
+
+```bash
+uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+```
+
+### Password reset emails are not arriving
+
+Check:
+
+- Gmail app password is valid
+- `SMTP_USER` and `FROM_EMAIL` match the sender you expect
+- your `.env` values are loaded before starting the app
+- Node.js is installed if you want to use the Nodemailer bridge
+
+### Demo users do not work
+
+If you reseeded recently, use the credentials listed above. If you created custom users and then ran `make seed-demo`, those custom users were replaced by demo data.
+
+## Related Docs
+
+- [PAGES_GUIDE.md](/Users/bhargavnikhil/Desktop/finance_tracker/PAGES_GUIDE.md) -> detailed explanation of pages and sections
 
 ## Summary
 
-Finly is now a combined frontend + API app with:
-
-- a public landing experience
-- a dedicated support page for new users and admins
-- separate login and signup pages
-- a two-step password recovery flow
-- Gmail/SMTP-friendly password reset email delivery with Brevo fallback
-- user budgeting/reporting workflows
-- admin operations and system analytics
-- one-port sharing through ngrok
+Finly is a full-stack finance platform that combines personal finance workflows and admin oversight in one app. Users manage transactions, budgets, reports, and notifications, while admins manage users, logs, system transactions, and system analytics. The backend is FastAPI, the frontend is static HTML/CSS/JS, and everything now runs on a single SQL Server database.

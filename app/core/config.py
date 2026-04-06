@@ -16,9 +16,6 @@ class Settings:
     DB_USER = os.getenv("DB_USER")
     DB_PASSWORD = os.getenv("DB_PASSWORD")
 
-    MONGO_URI = os.getenv("MONGO_URI")
-    MONGO_DB = os.getenv("MONGO_DB")
-
     JWT_SECRET = os.getenv("JWT_SECRET", "change-this-secret-in-production")
     JWT_ALGORITHM = "HS256"
     JWT_EXPIRE_MINUTES = 60 * 24

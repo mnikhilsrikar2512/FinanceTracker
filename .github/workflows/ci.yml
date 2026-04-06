@@ -29,9 +29,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Start DBs (SQL Server + Mongo)
+      - name: Start DBs (SQL Server)
         run: |
-          docker-compose up -d
+          docker compose up -d
 
       - name: Prepare environment for tests
         run: |
@@ -42,11 +42,19 @@ DB_PORT=1433
 DB_NAME=finance_db
 DB_USER=sa
 DB_PASSWORD=StrongPass123
-MONGO_URI=mongodb://localhost:27017
-MONGO_DB=finance_logs
 JWT_SECRET=ci-secret
 ENV
         shell: bash
+
+      - name: Initialize database schema
+        run: |
+          python scripts/init_db.py
+        env:
+          DB_SERVER: localhost
+          DB_PORT: 1433
+          DB_NAME: finance_db
+          DB_USER: sa
+          DB_PASSWORD: StrongPass123
 
       - name: Seed database
         run: |
@@ -69,4 +77,4 @@ ENV
       - name: Teardown
         if: always()
         run: |
-          docker-compose down
+          docker compose down

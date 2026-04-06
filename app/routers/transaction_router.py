@@ -11,10 +11,18 @@ from app.core.response import success_response, paginated_response
 from app.models.user import User
 from app.models.category import Category
 from app.models.transaction import Transaction
+from app.services.log_service import log_action
 import csv
 import io
 
 router = APIRouter(prefix="/transactions", tags=["Transactions"])
+
+
+def _category_name(db: Session, category_id: int | None) -> str | None:
+    if not category_id:
+        return None
+    category = db.query(Category).filter(Category.id == category_id).first()
+    return category.name if category else None
 
 
 def enrich_transaction(txn: Transaction, db: Session) -> dict:
@@ -47,7 +55,22 @@ def create_transaction(
     current_user: User = Depends(get_current_user)
 ):
     result = transaction_service.create_transaction(db, data, current_user.id)
-    return success_response(data=enrich_transaction(result, db))
+    enriched = enrich_transaction(result, db)
+    log_action(
+        action="CREATE_TRANSACTION",
+        user_id=current_user.id,
+        payload={
+            "name": current_user.name,
+            "email": current_user.email,
+            "description": enriched.get("description"),
+            "amount": enriched.get("amount"),
+            "category_name": enriched.get("category_name"),
+        },
+        entity_type="transaction",
+        entity_id=enriched.get("id"),
+        level="INFO",
+    )
+    return success_response(data=enriched)
 
 
 @router.get("", response_model=dict)
@@ -258,6 +281,19 @@ def bulk_restore_transactions(
             restored_count += 1
 
     db.commit()
+    if restored_count:
+        log_action(
+            action="BULK_RESTORE_TRANSACTION",
+            user_id=current_user.id,
+            payload={
+                "name": current_user.name,
+                "email": current_user.email,
+                "count": restored_count,
+                "ids": id_list,
+            },
+            entity_type="transaction",
+            level="INFO",
+        )
     return success_response(message=f"{restored_count} transaction(s) restored")
 
 
@@ -276,7 +312,22 @@ def update_transaction(
         raise HTTPException(status_code=403, detail="You can only update your own transactions")
     
     result = transaction_service.update_transaction(db, transaction_id, data, current_user.id)
-    return success_response(data=enrich_transaction(result, db))
+    enriched = enrich_transaction(result, db)
+    log_action(
+        action="UPDATE_TRANSACTION",
+        user_id=current_user.id,
+        payload={
+            "name": current_user.name,
+            "email": current_user.email,
+            "description": enriched.get("description"),
+            "amount": enriched.get("amount"),
+            "category_name": enriched.get("category_name"),
+        },
+        entity_type="transaction",
+        entity_id=transaction_id,
+        level="INFO",
+    )
+    return success_response(data=enriched)
 
 
 @router.delete("/{transaction_id}")
@@ -294,8 +345,23 @@ def delete_transaction(
         raise HTTPException(status_code=403, detail="You can only delete your own transactions")
     
     if mode == "hard":
+        payload = {
+            "name": current_user.name,
+            "email": current_user.email,
+            "description": txn.description,
+            "amount": txn.amount,
+            "category_name": _category_name(db, txn.category_id),
+        }
         db.delete(txn)
         db.commit()
+        log_action(
+            action="DELETE_TRANSACTION",
+            user_id=current_user.id,
+            payload=payload,
+            entity_type="transaction",
+            entity_id=transaction_id,
+            level="WARNING",
+        )
         return success_response(message="Transaction permanently deleted")
     
     if mode != "soft":
@@ -303,6 +369,20 @@ def delete_transaction(
     
     txn.is_deleted = True
     db.commit()
+    log_action(
+        action="ARCHIVE_TRANSACTION",
+        user_id=current_user.id,
+        payload={
+            "name": current_user.name,
+            "email": current_user.email,
+            "description": txn.description,
+            "amount": txn.amount,
+            "category_name": _category_name(db, txn.category_id),
+        },
+        entity_type="transaction",
+        entity_id=transaction_id,
+        level="INFO",
+    )
     return success_response(message="Transaction archived (soft delete)")
 
 
@@ -344,6 +424,19 @@ def bulk_delete_transactions(
         deleted_count += 1
     
     db.commit()
+    if deleted_count:
+        log_action(
+            action="BULK_DELETE_TRANSACTION" if mode == "hard" else "BULK_ARCHIVE_TRANSACTION",
+            user_id=current_user.id,
+            payload={
+                "name": current_user.name,
+                "email": current_user.email,
+                "count": deleted_count,
+                "ids": id_list,
+            },
+            entity_type="transaction",
+            level="WARNING" if mode == "hard" else "INFO",
+        )
     action = "permanently deleted" if mode == "hard" else "archived"
     return success_response(message=f"{deleted_count} transaction(s) {action}")
 
@@ -367,7 +460,22 @@ def restore_transaction(
     txn.modified_at = datetime.utcnow()
     db.commit()
     db.refresh(txn)
-    return success_response(message="Transaction restored", data=enrich_transaction(txn, db))
+    enriched = enrich_transaction(txn, db)
+    log_action(
+        action="RESTORE_TRANSACTION",
+        user_id=current_user.id,
+        payload={
+            "name": current_user.name,
+            "email": current_user.email,
+            "description": enriched.get("description"),
+            "amount": enriched.get("amount"),
+            "category_name": enriched.get("category_name"),
+        },
+        entity_type="transaction",
+        entity_id=transaction_id,
+        level="INFO",
+    )
+    return success_response(message="Transaction restored", data=enriched)
 
 
 @router.get("/export")

@@ -7,8 +7,83 @@ from app.core.deps import get_db
 from app.core.auth import get_current_user
 from app.core.response import success_response
 from app.models.user import User
+from app.models.category import Category
+from app.models.audit_log import AuditLog
+from app.services.log_service import log_action
 
 router = APIRouter(prefix="/budgets", tags=["Budgets"])
+
+THRESHOLD_ACTIONS = {
+    50: "BUDGET_REACHED_50",
+    75: "BUDGET_REACHED_75",
+    100: "BUDGET_REACHED_LIMIT",
+    101: "BUDGET_OVER_BUDGET",
+}
+
+
+def _budget_category_name(db: Session, category_id: int) -> str:
+    category = db.query(Category).filter(Category.id == category_id).first()
+    return category.name if category else "Uncategorized"
+
+
+def _emit_budget_threshold_updates(db: Session, current_user: User, summaries: list[dict]) -> None:
+    budget_ids = [summary["budget"].id for summary in summaries if summary.get("budget")]
+    if not budget_ids:
+        return
+
+    existing_logs = {
+        (row.entity_id, row.action)
+        for row in db.query(AuditLog.entity_id, AuditLog.action)
+        .filter(
+            AuditLog.entity_type == "budget",
+            AuditLog.entity_id.in_(budget_ids),
+            AuditLog.action.in_(THRESHOLD_ACTIONS.values()),
+        )
+        .all()
+    }
+
+    for summary in summaries:
+        budget = summary.get("budget")
+        if not budget:
+            continue
+        percent = float(summary.get("percentage_used") or 0)
+        is_over_budget = bool(summary.get("is_over_budget"))
+        threshold = None
+        if is_over_budget:
+            threshold = 101
+        elif percent >= 100:
+            threshold = 100
+        elif percent >= 75:
+            threshold = 75
+        elif percent >= 50:
+            threshold = 50
+
+        if not threshold:
+            continue
+
+        action = THRESHOLD_ACTIONS[threshold]
+        if (budget.id, action) in existing_logs:
+            continue
+
+        category_name = _budget_category_name(db, budget.category_id)
+        log_action(
+            action=action,
+            user_id=current_user.id,
+            payload={
+                "name": current_user.name,
+                "email": current_user.email,
+                "category_name": category_name,
+                "amount": budget.amount,
+                "spent": summary.get("spent"),
+                "remaining": summary.get("remaining"),
+                "threshold": 100 if threshold == 101 else threshold,
+                "percentage_used": percent,
+            },
+            entity_type="budget",
+            entity_id=budget.id,
+            level="WARNING" if threshold in {100, 101} else "INFO",
+        )
+        existing_logs.add((budget.id, action))
 
 @router.post("", response_model=dict)
 def create_budget(
@@ -18,6 +93,19 @@ def create_budget(
 ):
     """Create a new budget."""
     budget = budget_service.create_budget(db, data, current_user.id)
+    log_action(
+        action="CREATE_BUDGET",
+        user_id=current_user.id,
+        payload={
+            "name": current_user.name,
+            "email": current_user.email,
+            "category_name": _budget_category_name(db, budget.category_id),
+            "amount": budget.amount,
+        },
+        entity_type="budget",
+        entity_id=budget.id,
+        level="INFO",
+    )
     return success_response(data={
         "id": budget.id,
         "user_id": budget.user_id,
@@ -60,6 +148,7 @@ def get_budgets_summary(
 ):
     """Get summary of all budgets with progress."""
     summaries = budget_service.get_budgets_summary(db, current_user.id)
+    _emit_budget_threshold_updates(db, current_user, summaries)
     data = []
     for summary in summaries:
         data.append({
@@ -102,6 +191,19 @@ def update_budget(
 ):
     """Update an existing budget."""
     budget = budget_service.update_budget(db, budget_id, data, current_user.id)
+    log_action(
+        action="UPDATE_BUDGET",
+        user_id=current_user.id,
+        payload={
+            "name": current_user.name,
+            "email": current_user.email,
+            "category_name": _budget_category_name(db, budget.category_id),
+            "amount": budget.amount,
+        },
+        entity_type="budget",
+        entity_id=budget.id,
+        level="INFO",
+    )
     return success_response(data={
         "id": budget.id,
         "category_id": budget.category_id,
@@ -121,7 +223,21 @@ def delete_budget(
     db: Session = Depends(get_db)
 ):
     """Delete a budget."""
+    budget = budget_service.get_budget(db, budget_id, current_user.id)
     result = budget_service.delete_budget(db, budget_id, current_user.id)
+    log_action(
+        action="DELETE_BUDGET",
+        user_id=current_user.id,
+        payload={
+            "name": current_user.name,
+            "email": current_user.email,
+            "category_name": _budget_category_name(db, budget.category_id),
+            "amount": budget.amount,
+        },
+        entity_type="budget",
+        entity_id=budget_id,
+        level="WARNING",
+    )
     return success_response(message=result["message"])
 
 @router.get("/{budget_id}/progress", response_model=dict)

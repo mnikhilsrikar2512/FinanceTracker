@@ -1,75 +1,72 @@
 # Finly Page Guide
 
-This document explains every major page in Finly and what each section is meant to show.
+This guide explains what each major page in Finly is for and what the main sections on that page show.
 
-It is written for:
+It is meant for:
 
-- new users who are opening the product for the first time
-- admins who need to understand the system workspace quickly
-- reviewers or higherups who want a clean overview without reading code
+- new users learning the product
+- admins reviewing the platform workspace
+- reviewers, teammates, or higherups who want a product walkthrough without reading code
 
 ## Product Structure
 
-Finly has 3 layers of pages:
+Finly is organized into 3 page groups:
 
 - `Public pages`
-  landing, login, signup, support, and password recovery
 - `User workspace`
-  personal finance tracking pages
 - `Admin workspace`
-  system-wide management and audit pages
+
+Most in-app pages now use a compact `i` help button in the header instead of a large explanation panel. Hovering or focusing that button gives a short explanation of what the page is for.
 
 ## Public Pages
 
-### `/`
-File: [`Project/index.html`](/Users/bhargavnikhil/Desktop/finance_tracker/Project/index.html)
+### Landing Page
+File: [`Project/index.html`]
 
 Purpose:
 
-- gives a first impression of the product
-- explains the difference between user and admin experiences
-- helps new visitors decide whether to sign up, log in, or review the admin flow
+- introduces the product
+- helps a first-time visitor decide where to start
 
 Main sections:
 
 - `Top navigation`
-  shows the brand, theme tools, and quick links to log in or sign up
-- `Hero section`
-  explains the product in one sentence and shows the two main workspaces
-- `How it works`
-  explains the product separately for users and admins
-- `Product tour`
-  briefly explains the main feature areas: transactions, budgets, reports, and logs
-- `Start here`
-  gives clear next steps for a new user, an existing user, or an admin reviewer
+  brand, theme controls, and quick links
+- `Hero`
+  short product introduction and workspace overview
+- `Feature overview`
+  explains the main areas like transactions, budgets, reports, and admin controls
+- `Start paths`
+  directs visitors to login, signup, or support
 
-### `/login.html`
-File: [`Project/login.html`](/Users/bhargavnikhil/Desktop/finance_tracker/Project/login.html)
+### Login
+File: [`Project/login.html`]
 
 Purpose:
 
-- authenticates existing users and admins
+- signs in an existing user or admin
 
 Main sections:
 
 - `Login form`
-  email and password inputs
+  email and password
 - `Primary action`
-  signs the user in and routes them to the correct workspace
-- `Forgot password link`
-  opens the recovery flow when someone cannot sign in
-- `Create account link`
-  sends new visitors to signup
+  signs the user in
+- `Forgot password`
+  starts recovery
+- `Create account`
+  sends new users to signup
+- `Support links`
+  gives access to the support page and landing page
 
 Behavior notes:
 
-- login uses email-format validation
-- email input is normalized before submit
-- blocked users are rejected by the API even with correct credentials
+- email sign-in only
+- email is normalized before submit
+- blocked users are rejected by the backend
 
-### `/signup.html`
-File: [`Project/signup.html`](/Users/bhargavnikhil/Desktop/finance_tracker/Project/signup.html)
-
+### Signup
+File: [`Project/signup.html`]
 Purpose:
 
 - creates a new user account
@@ -77,513 +74,509 @@ Purpose:
 Main sections:
 
 - `Signup form`
-  collects name, email, and password
+  name, email, and password
 - `Primary action`
-  creates the account and signs the user in
+  creates the account
 - `Login link`
-  sends existing users back to login
+  returns existing users to login
 
 Behavior notes:
 
-- signup passwords must include at least 8 characters, uppercase, lowercase, and a number
-- email input is normalized before submit
+- passwords must meet stronger validation rules
+- email is normalized before storage
 
-### `/forgot-password.html`
-File: [`Project/forgot-password.html`](/Users/bhargavnikhil/Desktop/finance_tracker/Project/forgot-password.html)
+### Forgot Password
+File: [`Project/forgot-password.html`]
 
 Purpose:
 
-- starts the password recovery flow
+- starts password recovery
 
 Main sections:
 
 - `Recovery intro`
-  explains the recovery step in plain language
-- `Step card`
-  tells the user they are requesting a verification code
+  explains the flow simply
+- `Step indicator`
+  shows that this is the email step
 - `Email form`
-  collects the account email address
+  collects the account email
 - `Primary action`
-  requests a reset code and moves the user to the next step
-- `Recovery links`
-  let the user jump to login or directly to the code-entry page
+  requests a verification code and moves the user to reset
+- `Secondary links`
+  link back to login or directly to the reset step
 
 Behavior notes:
 
-- the page always uses a generic response so account existence is not exposed
-- reset-code requests are throttled and also use a resend cooldown
-- reset-code delivery prefers Gmail/SMTP first through the installed Nodemailer bridge
-- Gmail works well here when configured with an app password
+- response wording stays generic so account existence is not exposed
+- reset requests are throttled and cooldown-controlled
 
-### `/reset-password.html`
+### Reset Password
 File: [`Project/reset-password.html`](/Users/bhargavnikhil/Desktop/finance_tracker/Project/reset-password.html)
 
 Purpose:
 
-- completes the recovery flow with code verification and a new password
+- completes recovery using a verification code
 
 Main sections:
 
-- `Recovery intro`
-  explains the verification step
-- `Notice box`
-  confirms that a code request was accepted
+- `Verification intro`
+  explains the reset step
 - `Reset form`
-  collects email, verification code, new password, and confirmation
+  email, verification code, new password, confirm password
 - `Primary action`
-  resets the password and sends the user back to login
-- `Recovery links`
-  let the user request another code or return to login
+  resets the password
+- `Secondary links`
+  request another code or return to login
 
 Behavior notes:
 
-- the remembered email is carried forward automatically from step 1
-- reset passwords must meet the stronger password rules
-- invalid reset attempts are throttled
-- code delivery uses the configured mail provider and prefers SMTP first
+- email can be prefilled from the first recovery step
+- password rules match signup/change-password rules
+- code delivery uses the configured Gmail/SMTP path by default
 
-### `/support.html`
-File: [`Project/support.html`](/Users/bhargavnikhil/Desktop/finance_tracker/Project/support.html)
-
+### Support
+File: [`Project/support.html`]
 Purpose:
 
-- gives new users and admins a simple customer-help entry point
-- explains the most common flows without requiring them to open product pages first
+- acts as the product help center
+- gives new users and admins a non-technical place to start
 
 Main sections:
 
 - `Support hero`
-  explains the purpose of the help center and points people to login or recovery
-- `Quick answers`
-  directs users to the right first page for common needs
-- `Common topics`
-  explains the difference between user and admin areas in plain language
-- `Need more help`
-  gives clear next steps for recovery, overview, and admin review
+  summarizes what the support center helps with
+- `Contact Support`
+  shows support email, phone number, support hours, and response expectations
+- `Choose Your Path`
+  points people to the right flow based on what they need
+- `FAQ`
+  answers common product and recovery questions
+- `Workspace Guide`
+  explains the difference between user and admin areas
+- `Next actions`
+  suggests what someone should open next
 
 ## User Workspace
 
 ### Dashboard
-File: [`Project/app.html`](/Users/bhargavnikhil/Desktop/finance_tracker/Project/app.html)
+File: [`Project/app.html`]
 
 Purpose:
 
-- gives a quick personal financial snapshot
-- highlights what needs attention first
+- gives the user a quick financial snapshot
+- helps them see what needs attention first
 
 Main sections:
 
-- `Page header`
-  greeting, workspace label, search, and header tools
-- `Start Here`
-  explains how a first-time user should read this page
+- `Header`
+  greeting, workspace chip, search, theme control, date
+- `Help tooltip`
+  explains the page purpose through the `i` button
 - `Top metric cards`
-  show balance, income, and savings
+  total balance, income, and savings
 - `Budget Health`
-  explains whether active budgets are healthy, near limit, or unavailable
+  summary of how active budgets are performing
 - `Cashflow chart`
-  compares inflow and outflow over time
+  inflow vs outflow over time
 - `Spending chart`
-  shows where expenses are concentrated by category
+  category-based spending mix
 - `Recent Transactions`
-  gives a short list of the latest activity with links to the full transactions page
+  latest entries with a quick path to the full transactions page
 
-How to use it:
+Budget health behavior:
 
-- start with the top numbers
-- review the budget health callout
-- use recent transactions to drill into details
+- shows updates based on `50%`, `75%`, `100%`, and `over budget`
+- helps the user see whether budgets are comfortable, on watch, near limit, at limit, or over budget
 
 ### Transactions
-File: [`Project/transactions.html`](/Users/bhargavnikhil/Desktop/finance_tracker/Project/transactions.html)
+File: [`Project/transactions.html`]
 
 Purpose:
 
-- acts as the user’s source of truth for recorded money movement
+- serves as the main record of personal financial activity
 
 Main sections:
 
-- `Page header`
-  title, personal workspace badge, and header tools
-- `How To Use This Page`
-  explains quick add, filtering, and archive vs delete
+- `Header`
+  title, workspace chip, header tools
+- `Help tooltip`
+  explains what this page is used for
 - `Quick Add`
-  creates a new income or expense entry quickly
+  fast entry form for income and expense transactions
 - `Filter bar`
-  narrows records by search, type, category, date, sort, and archived state
-- `Active filters`
-  shows which filters are currently shaping the results
+  search, type, category, dates, archive filter, and sort
+- `Active filter chips`
+  shows which filters are shaping the current results
 - `Bulk actions`
-  lets the user archive, restore, or permanently delete multiple selected rows
+  lets the user archive, restore, or permanently delete multiple rows
 - `Transaction list`
-  shows each transaction with description, amount, date, and actions
+  each row shows category, description, amount, date, and actions
 - `Pagination`
-  moves through the result set page by page
+  handles longer result sets
 
 Important behavior:
 
-- `Archive` keeps history but hides the row from default views
-- `Restore` brings archived items back
-- `Delete Forever` permanently removes the row
-- `Export CSV` downloads the current transaction dataset
+- `Active Only` shows current working records
+- `Archived Only` shows only archived records
+- `Active + Archived` shows both
+- `Archive` hides a row from default views but keeps history
+- `Restore` returns archived rows to active use
+- `Delete Forever` removes them permanently
 
 ### Reports
-File: [`Project/reports.html`](/Users/bhargavnikhil/Desktop/finance_tracker/Project/reports.html)
+File: [`Project/reports.html`]
 
 Purpose:
 
-- turns raw transactions into a personal report that is easier to understand
+- turns transaction data into a readable financial report
 
 Main sections:
 
-- `Page header`
-  title, context badge, and header tools
-- `How To Read This Report`
-  explains the order in which the page should be read
+- `Header`
+  title, context chip, header tools
+- `Help tooltip`
+  explains what the report is for
 - `Date toolbar`
-  filters the report by date range and exports CSV or PDF
+  filters the report range and supports export
 - `Top metric cards`
-  show net savings, average inflow, and average outflow
+  net savings, average inflow, average outflow
 - `Growth Trend`
-  shows income and expense movement over time
+  line chart for income and expense movement over time
 - `Spending Mix`
-  shows which categories drive spending
+  donut chart for category distribution
 - `Insights`
-  converts the numbers into simpler labels like top category, largest expense, and trend direction
+  top category, largest expense, activity, average transaction, trend
 - `Summary`
-  gives a plain-language explanation of the current range
+  plain-language explanation of the current range
 - `Highlights`
-  surfaces the most important quick observations
+  quick observations worth noticing first
 - `Top Spending Categories`
-  ranks the categories contributing most to spend
+  ranked category table
 - `Monthly Snapshot`
-  gives a compact table of income, expense, and net movement by period
+  period-by-period financial summary
 
 Exports:
 
 - `CSV`
-  structured report data for spreadsheet review
+  structured report data with overview, summary, takeaways, highlights, category leaders, and snapshot
 - `PDF`
-  readable report summary with metrics, insights, and chart pages
+  formatted report briefing with role-aware labels, key takeaways, insights, and chart pages
 
 Role behavior:
 
-- users see personal finance reporting for their own transactions
-- admins see system analytics, including an all-user transaction summary that only includes users with activity in the selected range
+- user reports show personal finance data only
+- admin reports show system-wide analytics and user activity summaries
 
 ### Budgets
-File: [`Project/budgets.html`](/Users/bhargavnikhil/Desktop/finance_tracker/Project/budgets.html)
+File: [`Project/budgets.html`]
 
 Purpose:
 
-- helps users set spending limits and compare real expenses against those limits
+- helps users plan category-based spending and compare it with actual expense behavior
 
 Main sections:
 
-- `Page header`
+- `Header`
   title and workspace context
-- `Create New Budget`
-  creates a category budget for a time period
+- `Help tooltip`
+  explains the goal of budget tracking
+- `Create budget`
+  builds a new category budget
 - `Top summary cards`
-  show total budgeted amount, total spent, and remaining amount
-- `Budget list/cards`
-  show the health of each budget, including progress and over-budget state
+  total budgeted, total spent, total remaining
+- `Budget cards`
+  each card shows category, amount, spent, remaining, progress, and current status
 
-How budgets work:
+Budget status meanings:
 
-- budgets are personal, not admin-wide
-- they compare expense transactions against a selected category and date range
-- they only become meaningful when matching expense transactions exist
-
-### Notifications / Activity Logs
-File: [`Project/logs.html`](/Users/bhargavnikhil/Desktop/finance_tracker/Project/logs.html)
-
-Purpose:
-
-- shows a personal history of account-level actions
-
-Main sections:
-
-- `Page header`
-  title and workspace context
-- `Activity list`
-  shows readable labels for actions such as login or account activity
-- `Date and time column`
-  makes it easy to see recency
-- `Pagination`
-  moves across the history when there are more records
-
-What it is for:
-
-- checking recent activity
-- confirming account actions
-- giving users a simple timeline instead of raw system logs
-
-### Profile & Security
-File: [`Project/profile.html`](/Users/bhargavnikhil/Desktop/finance_tracker/Project/profile.html)
-
-Purpose:
-
-- gives users one place to manage their account identity and security
-
-Main sections:
-
-- `Page header`
-  title, workspace context, and header tools
-- `Start Here`
-  explains the safe order for profile, password, and danger-zone actions
-- `Account Overview`
-  shows name, email, role, status, and member-since date
-- `Profile Details`
-  lets the user update their name and email
-- `Password`
-  lets the user change their password with the stronger password rules
-- `Danger Zone`
-  provides logout and permanent account deletion
+- `Comfortable`
+  below `50%`
+- `On Watch`
+  `50%` to below `75%`
+- `Approaching Limit`
+  `75%` to below `100%`
+- `At Limit`
+  `100%`
+- `Over Budget`
+  spending has exceeded the planned amount
 
 Important behavior:
 
-- email changes are normalized and checked against existing accounts
+- budgets are personal, not shared across users
+- they compare expense transactions against category and date range
+- threshold updates also feed into notifications/log history
+
+### Notifications
+File: [`Project/logs.html`]
+
+Purpose:
+
+- gives the user a readable timeline of important account activity
+
+Main sections:
+
+- `Header`
+  title and workspace context
+- `Activity list`
+  human-readable activity cards instead of raw audit rows
+- `Event summary`
+  explains what happened in plain language
+- `Severity and entity tags`
+  give context such as info, warning, transaction, or budget
+- `Timestamp`
+  shows when the event happened
+- `Pagination`
+  supports longer history
+
+What appears here:
+
+- sign-in activity
+- profile changes
+- transaction actions
+- budget actions and threshold updates
+- account-level events
+
+### Profile
+File: [`Project/profile.html`]
+
+Purpose:
+
+- gives users a single place to manage identity and security
+
+Main sections:
+
+- `Header`
+  title and workspace context
+- `Help tooltip`
+  explains the page purpose
+- `Account Overview`
+  name, email, role, status, joined date
+- `Profile Details`
+  update name and email
+- `Password`
+  change password
+- `Danger Zone`
+  logout and permanent account deletion
+
+Important behavior:
+
+- email is normalized and checked for duplicates
 - password changes require the current password
-- account deletion is permanent and requires a typed confirmation
+- account deletion is permanent and requires confirmation
 
 ## Admin Workspace
 
 ### Admin Dashboard
-File: [`Project/admin.html`](/Users/bhargavnikhil/Desktop/finance_tracker/Project/admin.html)
+File: [`Project/admin.html`]
 
 Purpose:
 
-- acts as the admin starting point and quick operational overview
+- serves as the admin command center
 
 Main sections:
 
-- `Page header`
-  title, admin badge, and header tools
-- `Admin Guide`
-  explains how to use the page as a command center
+- `Header`
+  title, system-admin chip, header tools
+- `Help tooltip`
+  explains the purpose of the dashboard
 - `Top KPI cards`
-  show total users, active users, blocked users, and active system transactions
+  total users, active users, blocked users, active system transactions
 - `User Directory`
-  shows a short list of users with quick block or unblock controls where allowed
+  quick user list with backend-backed search and fast block/unblock actions where allowed
 - `User Composition`
-  shows the split between active users, blocked users, and admins
+  chart showing the split between active, blocked, and admin users
 - `System Activity`
-  shows recent operational log events
+  latest operational activity summaries
 
 Best use:
 
-- start here, then move to users, transactions, logs, or reports for deeper review
+- start here for a quick platform check
+- then move to users, transactions, logs, or reports for deeper work
 
 ### User Management
-File: [`Project/admin-users.html`](/Users/bhargavnikhil/Desktop/finance_tracker/Project/admin-users.html)
+File: [`Project/admin-users.html`]
 
 Purpose:
 
-- manages account access and reviews user identity information
+- manages account access and identity review
 
 Main sections:
 
-- `Page header`
+- `Header`
   title and admin context
-- `Admin Guide`
-  explains how to review a user before taking action
+- `Help tooltip`
+  explains how this page should be used
 - `Details panel`
-  shows role, email, status, created date, and internal id for the selected user
+  role, email, status, join date, internal id
 - `Filter bar`
-  narrows the directory by search and status
+  search and status filtering
 - `Users table`
-  lists users with role, status, and management controls
+  list of users with role, status, and actions
 - `Pagination`
-  supports larger user directories
+  supports large directories
 
 Important behavior:
 
-- admin accounts are protected and do not expose block actions in the UI
+- admin accounts are protected from block actions
 - regular users can be blocked or unblocked
 
 ### System Transactions
-File: [`Project/admin-transactions.html`](/Users/bhargavnikhil/Desktop/finance_tracker/Project/admin-transactions.html)
+File: [`Project/admin-transactions.html`]
 
 Purpose:
 
-- provides a system-wide audit surface for all transactions
+- gives admins a platform-wide audit surface for money movement
 
 Main sections:
 
-- `Page header`
+- `Header`
   title and admin context
-- `Admin Guide`
-  explains how to investigate and manage records safely
+- `Help tooltip`
+  explains the audit purpose
 - `Filter bar`
-  filters by user, type, category, sort, and amount range
-- `Active filters`
+  user, type, category, sort, amount range, and other scope controls
+- `Active filter chips`
   summarizes the current audit scope
 - `Bulk actions`
-  archives, restores, or deletes multiple rows
+  archive, restore, or delete multiple transactions
 - `Transactions table`
-  shows date, origin, category, status, value, and per-row actions
-- `Transaction details modal`
-  gives a closer look at the selected record
+  timestamp, origin, category, status, value, and actions
+- `Details modal`
+  deeper view of one transaction
 - `Pagination`
-  handles large system datasets
+  for large result sets
 
 Important behavior:
 
-- `Active` means visible in default analytics and lists
-- `Archived` means retained but hidden from normal views
-- admins can audit across all users
+- `Active` means visible in normal views and analytics
+- `Archived` means hidden from default views but retained
+- admins can inspect records across all users
 
 ### Operation Logs
-File: [`Project/admin-logs.html`](/Users/bhargavnikhil/Desktop/finance_tracker/Project/admin-logs.html)
+File: [`Project/admin-logs.html`]
 
 Purpose:
 
-- gives admins a traceable view of operational events across the platform
+- gives admins a traceable operational audit history
 
 Main sections:
 
-- `Page header`
+- `Header`
   title and admin context
-- `Admin Guide`
-  explains how to use severity, action, and dates to trace incidents
+- `Help tooltip`
+  explains how to use severity, action, and dates together
 - `Top KPI cards`
-  show counts of INFO, WARNING, and ERROR logs
+  counts of info, warning, and error logs
 - `Filter bar`
-  filters by level, action type, and date range
-- `Active filters`
-  summarizes the current log scope
+  level, action, and date filters
+- `Active filter chips`
+  current log scope
 - `Logs table`
-  shows timestamp, identity, operation, level, request id, and details access
+  readable actor, action summary, severity, request id, and details access
 - `Details modal`
-  shows raw event payload and metadata
+  structured view of activity, actor, metadata, and payload
 - `Pagination`
-  handles long operational histories
+  supports longer audit history
 
 How to read levels:
 
 - `INFO`
-  normal system activity
+  standard product activity
 - `WARNING`
-  admin actions or unusual states
+  actions that need attention or represent elevated impact
 - `ERROR`
   failure conditions or broken flows
 
-### Admin Profile & Security
-File: [`Project/admin-profile.html`](/Users/bhargavnikhil/Desktop/finance_tracker/Project/admin-profile.html)
+### Admin Reports
+File: [`Project/reports.html`]
 
 Purpose:
 
-- gives admins a self-service page for their own identity, password, logout, and account deletion
+- gives admins a system-wide analytics and reporting view
+
+What is different from user reports:
+
+- shows platform-level metrics instead of personal metrics
+- includes all-user transaction summary
+- only includes users with activity in the selected range
+- export files are structured as system analytics reports rather than personal finance reports
 
 Main sections:
 
-- `Page header`
+- the page layout is shared with user reports
+- copy, metrics, tables, and export content switch based on admin role
+
+### Admin Profile
+File: [`Project/admin-profile.html`]
+
+Purpose:
+
+- lets the signed-in admin manage their own identity and security
+
+Main sections:
+
+- `Header`
   title and admin context
-- `Admin Guide`
-  explains that this page is for the current admin account only
+- `Help tooltip`
+  explains that this page affects only the current admin account
 - `Account Overview`
-  shows name, email, status, and member-since date
+  name, email, role, status, member since
 - `Profile Details`
-  updates the admin’s own name and email
+  update name and email
 - `Password`
-  changes the current admin password
+  change password
 - `Danger Zone`
-  allows logout and permanent admin-account deletion with stronger confirmation text
+  logout and permanent admin-account deletion
 
 Important behavior:
 
-- this page is only for the currently signed-in admin
-- admin deletion uses a stricter typed confirmation to reduce mistakes
-- deleting an admin account is permanent and may affect team access
+- admin deletion uses stronger confirmation text
+- deleting the last admin is blocked by the backend
 
 ### Categories
-File: [`Project/categories.html`](/Users/bhargavnikhil/Desktop/finance_tracker/Project/categories.html)
+File: [`Project/categories.html`]
 
 Purpose:
 
-- gives admins oversight of system categories and lets them manage category structure
+- manages the category structure used across transactions, budgets, and reports
 
 Main sections:
 
-- `Page header`
+- `Header`
   title and admin context
 - `Quick Create`
-  adds a new income or expense category
+  create a new category
 - `Categories list`
-  shows current categories grouped by type
-- `Delete Category dialog/panel`
-  supports deletion with reassignment so dependent transactions are not stranded
+  grouped by income and expense
+- `Delete with reassignment`
+  removes a category safely without leaving related transactions stranded
 
-Why it matters:
+Important behavior:
 
-- category quality affects reporting, budgets, and transaction filtering
+- duplicate category names are blocked
+- required create fields must be valid before creation is allowed
 
-## Role-Based Reports
+## Suggested Walkthroughs
 
-The reports page is shared, but the meaning changes by role.
+### For a new user
 
-### User report
+1. Open the landing page
+2. Review support if needed
+3. Sign up or log in
+4. Add a few transactions
+5. Create a budget
+6. Check dashboard and reports
+7. Review notifications
 
-- focuses on one user’s own money
-- explains personal savings, spending, categories, and trends
+### For an admin reviewer
 
-### Admin report
+1. Log in as admin
+2. Start on admin dashboard
+3. Search and review users
+4. Open system transactions
+5. Check admin logs
+6. Review admin reports
 
-- focuses on system-wide activity
-- summarizes all users together
-- includes an `All User Transaction Summary` section that only shows users with activity in the selected range
-- uses system-level KPIs and exports rather than personal finance wording
+## Related Docs
 
-## Recommended First-Time Flows
-
-### New user
-
-1. Open the landing page.
-2. Create an account or log in.
-3. If needed, use the forgot-password flow instead of creating a duplicate account.
-4. Open `Transactions` and add a first income or expense.
-5. Return to `Dashboard` to review the top metrics.
-6. Create a budget and then open `Reports` to understand the result.
-
-### New admin
-
-1. Log in and open `Command Center`.
-2. Review the KPI cards and recent activity.
-3. Open `User Management` to understand the user base.
-4. Open `System Transactions` to audit records.
-5. Open `Reports` for the system-wide summary.
-6. Use `Operation Logs` when investigating specific incidents.
-
-## Key Terms
-
-- `Archive`
-  hide a record from normal views without destroying it
-- `Restore`
-  bring an archived record back into active views
-- `Delete Forever`
-  permanently remove a record
-- `Personal Workspace`
-  user-only finance experience
-- `System Admin`
-  admin-only operational experience
-
-## Files Covered
-
-- [`Project/index.html`](/Users/bhargavnikhil/Desktop/finance_tracker/Project/index.html)
-- [`Project/login.html`](/Users/bhargavnikhil/Desktop/finance_tracker/Project/login.html)
-- [`Project/signup.html`](/Users/bhargavnikhil/Desktop/finance_tracker/Project/signup.html)
-- [`Project/forgot-password.html`](/Users/bhargavnikhil/Desktop/finance_tracker/Project/forgot-password.html)
-- [`Project/reset-password.html`](/Users/bhargavnikhil/Desktop/finance_tracker/Project/reset-password.html)
-- [`Project/app.html`](/Users/bhargavnikhil/Desktop/finance_tracker/Project/app.html)
-- [`Project/transactions.html`](/Users/bhargavnikhil/Desktop/finance_tracker/Project/transactions.html)
-- [`Project/reports.html`](/Users/bhargavnikhil/Desktop/finance_tracker/Project/reports.html)
-- [`Project/budgets.html`](/Users/bhargavnikhil/Desktop/finance_tracker/Project/budgets.html)
-- [`Project/logs.html`](/Users/bhargavnikhil/Desktop/finance_tracker/Project/logs.html)
-- [`Project/profile.html`](/Users/bhargavnikhil/Desktop/finance_tracker/Project/profile.html)
-- [`Project/admin.html`](/Users/bhargavnikhil/Desktop/finance_tracker/Project/admin.html)
-- [`Project/admin-users.html`](/Users/bhargavnikhil/Desktop/finance_tracker/Project/admin-users.html)
-- [`Project/admin-transactions.html`](/Users/bhargavnikhil/Desktop/finance_tracker/Project/admin-transactions.html)
-- [`Project/admin-logs.html`](/Users/bhargavnikhil/Desktop/finance_tracker/Project/admin-logs.html)
-- [`Project/admin-profile.html`](/Users/bhargavnikhil/Desktop/finance_tracker/Project/admin-profile.html)
-- [`Project/categories.html`](/Users/bhargavnikhil/Desktop/finance_tracker/Project/categories.html)
+- [README.md]

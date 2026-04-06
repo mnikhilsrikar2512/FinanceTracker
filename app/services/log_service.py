@@ -1,9 +1,11 @@
 """Logging service for audit trails."""
 from datetime import datetime
 from datetime import timezone
+import json
 import threading
-import uuid
-from app.core.mongo import logs_collection, ensure_log_indexes
+
+from app.core.database import SessionLocal
+from app.models.audit_log import AuditLog
 
 _audit_config = {
     "enabled": True,
@@ -12,24 +14,29 @@ _audit_config = {
 
 def log_action(action, user_id, payload=None, entity_type=None, entity_id=None, level="INFO", request_id=None):
     try:
-        log_entry = {
-            "event": action,
-            "action": action,
-            "user_id": user_id,
-            "entity_type": entity_type,
-            "entity_id": entity_id,
-            "level": level,
-            "request_id": request_id,
-            "payload": payload or {},
-            "timestamp": datetime.now(timezone.utc),
-            "created_at": datetime.now(timezone.utc).isoformat()
-        }
+        timestamp = datetime.now(timezone.utc).replace(tzinfo=None)
+        payload_json = json.dumps(payload or {}, default=str)
         
         def _async_insert():
+            session = SessionLocal()
             try:
-                logs_collection.insert_one(log_entry)
+                session.add(AuditLog(
+                    event=action,
+                    action=action,
+                    user_id=user_id,
+                    entity_type=entity_type,
+                    entity_id=entity_id,
+                    level=level,
+                    request_id=request_id,
+                    payload_json=payload_json,
+                    timestamp=timestamp,
+                    created_at=timestamp,
+                ))
+                session.commit()
             except Exception:
-                pass
+                session.rollback()
+            finally:
+                session.close()
         
         thread = threading.Thread(target=_async_insert, daemon=True)
         thread.start()
@@ -51,7 +58,4 @@ def log_error(action, user_id, payload=None, entity_type=None, entity_id=None, r
 
 
 def setup_logging():
-    try:
-        ensure_log_indexes()
-    except Exception:
-        pass
+    return None

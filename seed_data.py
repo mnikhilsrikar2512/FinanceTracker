@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import json
 from datetime import date, datetime, timedelta, timezone
 
 from app.core.auth import get_password_hash
-from app.core.database import Base, SessionLocal, engine
-from app.core.mongo import logs_collection
-from app.models import Budget, Category, Transaction, User
+from app.core.database import SessionLocal
+from app.core.db_init import init_database_schema
+from app.models import AuditLog, Budget, Category, Transaction, User
 
 
 USER_FIXTURES = [
@@ -41,18 +42,12 @@ CATEGORY_FIXTURES = [
 
 
 def reset_sql_data(session):
+    session.query(AuditLog).delete()
     session.query(Budget).delete()
     session.query(Transaction).delete()
     session.query(User).delete()
     session.query(Category).delete()
     session.commit()
-
-
-def reset_logs():
-    try:
-        logs_collection.delete_many({})
-    except Exception as exc:
-        print(f"Mongo reset warning: {exc}")
 
 
 def seed_categories(session):
@@ -316,52 +311,49 @@ def seed_budgets(session, users, categories):
     session.commit()
 
 
-def seed_logs(users):
-    try:
-        now = datetime.now(timezone.utc)
-        admin = users["admin@financetracker.com"]
-        john = users["john@example.com"]
-        farah = users["farah@example.com"]
-        irene = users["irene@example.com"]
-        alice = users["alice@example.com"]
-        bob = users["bob@example.com"]
+def seed_logs(session, users):
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    admin = users["admin@financetracker.com"]
+    john = users["john@example.com"]
+    farah = users["farah@example.com"]
+    irene = users["irene@example.com"]
+    alice = users["alice@example.com"]
+    bob = users["bob@example.com"]
 
-        log_rows = [
-            {"action": "USER_LOGIN", "user_id": john.id, "level": "INFO", "entity_type": "user", "entity_id": john.id, "payload": {"email": john.email}, "timestamp": now - timedelta(minutes=15)},
-            {"action": "CREATE_TRANSACTION", "user_id": john.id, "level": "INFO", "entity_type": "transaction", "entity_id": 1, "payload": {"description": "Monthly salary"}, "timestamp": now - timedelta(minutes=14)},
-            {"action": "USER_LOGIN", "user_id": alice.id, "level": "INFO", "entity_type": "user", "entity_id": alice.id, "payload": {"email": alice.email}, "timestamp": now - timedelta(minutes=52)},
-            {"action": "CREATE_TRANSACTION", "user_id": alice.id, "level": "INFO", "entity_type": "transaction", "entity_id": 2, "payload": {"description": "Family groceries"}, "timestamp": now - timedelta(minutes=50)},
-            {"action": "ADMIN_BLOCK_USER", "user_id": admin.id, "level": "WARNING", "entity_type": "user", "entity_id": farah.id, "payload": {"blocked_user_id": farah.id, "email": farah.email}, "timestamp": now - timedelta(hours=3)},
-            {"action": "ADMIN_BLOCK_USER", "user_id": admin.id, "level": "WARNING", "entity_type": "user", "entity_id": irene.id, "payload": {"blocked_user_id": irene.id, "email": irene.email}, "timestamp": now - timedelta(hours=4)},
-            {"action": "ADMIN_UNBLOCK_USER", "user_id": admin.id, "level": "INFO", "entity_type": "user", "entity_id": bob.id, "payload": {"unblocked_user_id": bob.id, "email": bob.email}, "timestamp": now - timedelta(days=1, hours=2)},
-            {"action": "UPDATE_TRANSACTION", "user_id": admin.id, "level": "INFO", "entity_type": "transaction", "entity_id": 3, "payload": {"description": "Admin bonus correction"}, "timestamp": now - timedelta(days=1, hours=1)},
-            {"action": "DELETE_TRANSACTION", "user_id": admin.id, "level": "WARNING", "entity_type": "transaction", "entity_id": 4, "payload": {"mode": "soft"}, "timestamp": now - timedelta(days=2)},
-            {"action": "USER_LOGIN", "user_id": admin.id, "level": "INFO", "entity_type": "user", "entity_id": admin.id, "payload": {"email": admin.email}, "timestamp": now - timedelta(minutes=5)},
-        ]
+    log_rows = [
+        {"action": "USER_LOGIN", "user_id": john.id, "level": "INFO", "entity_type": "user", "entity_id": john.id, "payload": {"email": john.email}, "timestamp": now - timedelta(minutes=15)},
+        {"action": "CREATE_TRANSACTION", "user_id": john.id, "level": "INFO", "entity_type": "transaction", "entity_id": 1, "payload": {"description": "Monthly salary"}, "timestamp": now - timedelta(minutes=14)},
+        {"action": "USER_LOGIN", "user_id": alice.id, "level": "INFO", "entity_type": "user", "entity_id": alice.id, "payload": {"email": alice.email}, "timestamp": now - timedelta(minutes=52)},
+        {"action": "CREATE_TRANSACTION", "user_id": alice.id, "level": "INFO", "entity_type": "transaction", "entity_id": 2, "payload": {"description": "Family groceries"}, "timestamp": now - timedelta(minutes=50)},
+        {"action": "ADMIN_BLOCK_USER", "user_id": admin.id, "level": "WARNING", "entity_type": "user", "entity_id": farah.id, "payload": {"blocked_user_id": farah.id, "email": farah.email}, "timestamp": now - timedelta(hours=3)},
+        {"action": "ADMIN_BLOCK_USER", "user_id": admin.id, "level": "WARNING", "entity_type": "user", "entity_id": irene.id, "payload": {"blocked_user_id": irene.id, "email": irene.email}, "timestamp": now - timedelta(hours=4)},
+        {"action": "ADMIN_UNBLOCK_USER", "user_id": admin.id, "level": "INFO", "entity_type": "user", "entity_id": bob.id, "payload": {"unblocked_user_id": bob.id, "email": bob.email}, "timestamp": now - timedelta(days=1, hours=2)},
+        {"action": "UPDATE_TRANSACTION", "user_id": admin.id, "level": "INFO", "entity_type": "transaction", "entity_id": 3, "payload": {"description": "Admin bonus correction"}, "timestamp": now - timedelta(days=1, hours=1)},
+        {"action": "DELETE_TRANSACTION", "user_id": admin.id, "level": "WARNING", "entity_type": "transaction", "entity_id": 4, "payload": {"mode": "soft"}, "timestamp": now - timedelta(days=2)},
+        {"action": "USER_LOGIN", "user_id": admin.id, "level": "INFO", "entity_type": "user", "entity_id": admin.id, "payload": {"email": admin.email}, "timestamp": now - timedelta(minutes=5)},
+    ]
 
-        docs = []
-        for index, row in enumerate(log_rows, start=1):
-            docs.append({
-                "event": row["action"],
-                "action": row["action"],
-                "user_id": row["user_id"],
-                "entity_type": row["entity_type"],
-                "entity_id": row["entity_id"],
-                "level": row["level"],
-                "request_id": f"seed-log-{index:03d}",
-                "payload": row["payload"],
-                "timestamp": row["timestamp"],
-                "created_at": row["timestamp"].isoformat(),
-            })
+    docs = []
+    for index, row in enumerate(log_rows, start=1):
+        docs.append(AuditLog(
+            event=row["action"],
+            action=row["action"],
+            user_id=row["user_id"],
+            entity_type=row["entity_type"],
+            entity_id=row["entity_id"],
+            level=row["level"],
+            request_id=f"seed-log-{index:03d}",
+            payload_json=json.dumps(row["payload"]),
+            timestamp=row["timestamp"],
+            created_at=row["timestamp"],
+        ))
 
-        logs_collection.insert_many(docs)
-    except Exception as exc:
-        print(f"Mongo seed warning: {exc}")
+    session.add_all(docs)
+    session.commit()
 
 
 def main():
-    Base.metadata.create_all(bind=engine)
-    reset_logs()
+    init_database_schema()
 
     session = SessionLocal()
     try:
@@ -370,7 +362,7 @@ def main():
         users = seed_users(session)
         seed_transactions(session, users, categories)
         seed_budgets(session, users, categories)
-        seed_logs(users)
+        seed_logs(session, users)
     finally:
         session.close()
 

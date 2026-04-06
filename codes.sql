@@ -9,7 +9,7 @@
 --
 -- Notes:
 -- - The application stores income as positive amounts and expenses as negative amounts
--- - Activity logs are stored in MongoDB, not in SQL Server
+-- - Activity logs are stored in the audit_logs table in SQL Server
 -- =====================================================
 
 IF NOT EXISTS (SELECT 1 FROM sys.databases WHERE name = 'finance_db')
@@ -488,6 +488,111 @@ BEGIN
     ALTER TABLE dbo.budgets
     ADD CONSTRAINT CK_budgets_date_range
     CHECK (end_date >= start_date);
+END
+GO
+
+-- =====================================================
+-- AUDIT LOGS
+-- =====================================================
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'audit_logs')
+BEGIN
+    CREATE TABLE dbo.audit_logs (
+        id INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        event NVARCHAR(100) NOT NULL,
+        action NVARCHAR(100) NOT NULL,
+        user_id INT NULL,
+        entity_type NVARCHAR(50) NULL,
+        entity_id INT NULL,
+        level NVARCHAR(20) NOT NULL CONSTRAINT DF_audit_logs_level DEFAULT ('INFO'),
+        request_id NVARCHAR(120) NULL,
+        payload_json NVARCHAR(MAX) NULL,
+        timestamp DATETIME NOT NULL CONSTRAINT DF_audit_logs_timestamp DEFAULT (GETUTCDATE()),
+        created_at DATETIME NOT NULL CONSTRAINT DF_audit_logs_created_at DEFAULT (GETUTCDATE())
+    );
+END
+GO
+
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = 'idx_audit_logs_user_id'
+      AND object_id = OBJECT_ID('dbo.audit_logs')
+)
+BEGIN
+    CREATE INDEX idx_audit_logs_user_id
+    ON dbo.audit_logs(user_id);
+END
+GO
+
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = 'idx_audit_logs_timestamp'
+      AND object_id = OBJECT_ID('dbo.audit_logs')
+)
+BEGIN
+    CREATE INDEX idx_audit_logs_timestamp
+    ON dbo.audit_logs([timestamp]);
+END
+GO
+
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = 'idx_audit_logs_level'
+      AND object_id = OBJECT_ID('dbo.audit_logs')
+)
+BEGIN
+    CREATE INDEX idx_audit_logs_level
+    ON dbo.audit_logs(level);
+END
+GO
+
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = 'idx_audit_logs_request_id'
+      AND object_id = OBJECT_ID('dbo.audit_logs')
+)
+BEGIN
+    CREATE INDEX idx_audit_logs_request_id
+    ON dbo.audit_logs(request_id);
+END
+GO
+
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = 'idx_audit_user_timestamp'
+      AND object_id = OBJECT_ID('dbo.audit_logs')
+)
+BEGIN
+    CREATE INDEX idx_audit_user_timestamp
+    ON dbo.audit_logs(user_id, [timestamp]);
+END
+GO
+
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = 'idx_audit_action_timestamp'
+      AND object_id = OBJECT_ID('dbo.audit_logs')
+)
+BEGIN
+    CREATE INDEX idx_audit_action_timestamp
+    ON dbo.audit_logs(action, [timestamp]);
+END
+GO
+
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = 'idx_audit_entity'
+      AND object_id = OBJECT_ID('dbo.audit_logs')
+)
+BEGIN
+    CREATE INDEX idx_audit_entity
+    ON dbo.audit_logs(entity_type, entity_id);
 END
 GO
 

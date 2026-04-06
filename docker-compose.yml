@@ -8,10 +8,3 @@ services:
     ports:
       - "1433:1433"
     restart: always
-
-  mongodb:
-    image: mongo:6
-    container_name: finance_mongo
-    ports:
-      - "27017:27017"
-    restart: always

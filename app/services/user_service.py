@@ -47,7 +47,7 @@ def login(db: Session, email: str, password: str):
     log_action(
         action="USER_LOGIN",
         user_id=user.id,
-        payload={"email": user.email},
+        payload={"name": user.name, "email": user.email},
         entity_type="user",
         entity_id=user.id,
         level="INFO"
