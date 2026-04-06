@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Finance Tracker | Dashboard</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            primary: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              200: '#bfdbfe',
+              300: '#93c5fd',
+              400: '#60a5fa',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+              800: '#1e40af',
+              900: '#1e3a8a',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Utility Script -->
+  <script src="js/core/utils.js?v=20260402-2"></script>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body class="bg-[#FBFBFD] dark:bg-black transition-colors duration-300">
+
+<!-- Sidebar -->
+<div class="sidebar" id="sidebar">
+  <div class="sidebar-logo">Finly</div>
+  <nav class="sidebar-nav" data-sidebar="user">
+    <!-- Links by sidebar.js -->
+  </nav>
+  
+  <div class="mt-auto pt-6 border-t border-gray-200 dark:border-white/10">
+    <button onclick="FinanceUtils.logout()" class="sidebar-item w-full border-none cursor-pointer group">
+      <svg class="w-5 h-5 mr-3 text-gray-400 group-hover:text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+      </svg>
+      <span class="group-hover:text-red-500">Log Out</span>
+    </button>
+  </div>
+</div>
+
+<div class="main-content">
+  <header class="top-nav">
+    <div>
+      <div class="page-title-row">
+        <h1 class="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">Hello!</h1>
+        <div class="page-help" tabindex="0">
+          <button type="button" class="page-help-button" aria-label="What this dashboard is for">i</button>
+          <div class="page-help-tooltip">
+            <strong>Dashboard</strong>
+            <p>Use this snapshot to check balance, budget health, spending mix, and recent activity before drilling into detailed pages.</p>
+          </div>
+        </div>
+      </div>
+      <p class="text-sm text-gray-500 dark:text-gray-400 font-medium mt-1">Here's what's happening with your money.</p>
+    </div>
+    <div class="header-cluster">
+      <span class="context-chip context-chip-user">Personal Workspace</span>
+      <div class="toolbar-surface relative">
+        <svg class="w-4 h-4 absolute left-4 top-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input type="text" id="dashboardSearch" placeholder="Search" class="apple-input pl-11 py-2.5 w-64 text-sm font-medium">
+      </div>
+      <div data-header-tools="default"></div>
+    </div>
+  </header>
+
+  <main class="mt-8">
+    <!-- Highlight Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-10">
+      <div class="apple-card metric-card metric-card-blue">
+        <p class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Total Balance</p>
+        <h2 id="balance" class="text-4xl font-bold text-gray-900 dark:text-white tracking-tight">₹0</h2>
+        <div class="flex items-center gap-2 mt-4" id="balanceChangeBadge">
+          <span class="badge badge-success" id="balancePercentage">0%</span>
+          <span class="dashboard-note" id="balancePeriod">from last month</span>
+        </div>
+      </div>
+      
+      <div class="apple-card metric-card metric-card-green">
+        <p class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Income</p>
+        <h2 id="income" class="text-4xl font-bold tracking-tight" style="color: var(--apple-blue);">₹0</h2>
+        <p class="dashboard-stat-subtle mt-4">Current month earnings</p>
+      </div>
+
+      <div class="apple-card metric-card metric-card-orange">
+        <p class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Total Savings</p>
+        <h2 id="savings" class="text-4xl font-bold text-gray-900 dark:text-white tracking-tight">₹0</h2>
+        <p class="dashboard-stat-subtle mt-4">Across all accounts</p>
+      </div>
+    </div>
+
+    <div id="budgetHealthCallout" class="apple-card surface-accent-blue mb-10">
+      <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <p class="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2">Budget Health</p>
+          <h3 class="text-xl font-bold text-gray-900 dark:text-white">Checking your category limits...</h3>
+          <p class="dashboard-note mt-2">We are comparing your active budgets against recent category spending.</p>
+        </div>
+        <a href="budgets.html" class="btn btn-secondary">Open Budgets</a>
+      </div>
+    </div>
+
+    <!-- Charts & Insights -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-10 mb-10">
+      <div class="apple-card">
+        <div class="flex justify-between items-center mb-8">
+          <h3 class="text-lg font-bold text-gray-900 dark:text-white">Cashflow</h3>
+          <div class="flex gap-6 text-xs font-bold">
+            <span class="flex items-center gap-2" style="color: var(--apple-blue);"><div class="w-2 h-2 rounded-full" style="background: var(--apple-blue);"></div> Inflow</span>
+            <span class="chart-ui-muted flex items-center gap-2"><div class="w-2 h-2 rounded-full bg-gray-300"></div> Outflow</span>
+          </div>
+        </div>
+        <div class="h-80">
+          <canvas id="chart"></canvas>
+          <div id="cashflowEmpty" class="chart-empty-state hidden">
+            <strong>No cashflow yet</strong>
+            <span>Add income or expense entries to see how this period is moving.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="apple-card">
+        <div class="flex justify-between items-center mb-8">
+          <h3 class="text-lg font-bold text-gray-900 dark:text-white">Spending</h3>
+          <select id="categoryPeriodFilter" class="apple-input chart-control px-3 text-xs w-40 font-bold">
+            <option value="this_month">This Month</option>
+            <option value="last_month">Last Month</option>
+            <option value="last_3_months">Last 3 Months</option>
+          </select>
+        </div>
+        <div class="h-80">
+          <canvas id="categoryChart"></canvas>
+          <div id="spendingEmpty" class="chart-empty-state hidden">
+            <strong>No spending mix available</strong>
+            <span>Once you record expenses in this period, your category breakdown will appear here.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="apple-card">
+      <div class="flex justify-between items-center mb-8">
+        <h3 class="text-lg font-bold text-gray-900 dark:text-white">Recent Transactions</h3>
+        <div class="flex gap-3">
+          <a href="transactions.html" class="btn btn-secondary">View All</a>
+          <a href="transactions.html" class="btn btn-primary">+ Add New</a>
+        </div>
+      </div>
+      
+      <div class="space-y-3" id="recentTransactions">
+        <!-- Apple-style list items injected by JS -->
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="js/layout/sidebar.js"></script>
+<script src="js/layout/header-actions.js"></script>
+<script src="js/visuals/charts.js?v=20260402-2"></script>
+<script>
+const token = localStorage.getItem("token");
+if (!token) {
+  window.location.href = "login.html";
+}
+
+/* 🔷 USER DATA & ROLE */
+async function loadUserData() {
+  try {
+    const res = await FinanceUtils.fetchWithAuth('/users/me');
+    if (res.success) {
+      const user = res.data;
+      
+      // Update greeting
+      const greetingElement = document.querySelector('header h1');
+      if (greetingElement) {
+        const hour = new Date().getHours();
+        let greeting = 'Hello';
+        if (hour < 12) greeting = 'Good Morning';
+        else if (hour < 18) greeting = 'Good Afternoon';
+        else greeting = 'Good Evening';
+        greetingElement.textContent = `${greeting}, ${user.name || 'User'}!`;
+      }
+
+      // Hide restricted links for non-admin
+      if (user.role !== 'admin') {
+        const restrictedLinks = ['categories.html', 'admin-logs.html', 'admin-users.html', 'admin-transactions.html', 'admin.html'];
+        restrictedLinks.forEach(href => {
+          const link = document.querySelector(`nav a[href="${href}"]`);
+          if (link) link.style.display = 'none';
+        });
+      }
+    }
+  } catch (err) {
+    console.error('Failed to load user data:', err);
+  }
+}
+
+/* 🔷 DATE RANGES */
+function getDateRange(period) {
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+  const startOf3MonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+  
+  switch(period) {
+    case 'this_month':
+      return {
+        startDate: startOfMonth.toISOString().split('T')[0],
+        endDate: endOfMonth.toISOString().split('T')[0]
+      };
+    case 'last_month':
+      return {
+        startDate: startOfLastMonth.toISOString().split('T')[0],
+        endDate: endOfLastMonth.toISOString().split('T')[0]
+      };
+    case 'last_3_months':
+      return {
+        startDate: startOf3MonthsAgo.toISOString().split('T')[0],
+        endDate: endOfMonth.toISOString().split('T')[0]
+      };
+    default:
+      return { startDate: null, endDate: null };
+  }
+}
+
+function getPreviousPeriodRange(period) {
+  const currentRange = getDateRange(period);
+  if (!currentRange.startDate || !currentRange.endDate) {
+    return { startDate: null, endDate: null };
+  }
+  
+  const currentStart = new Date(currentRange.startDate);
+  const currentEnd = new Date(currentRange.endDate);
+  const durationDays = (currentEnd - currentStart) / (1000 * 60 * 60 * 24);
+  
+  const previousEnd = new Date(currentStart);
+  previousEnd.setDate(previousEnd.getDate() - 1);
+  const previousStart = new Date(previousEnd);
+  previousStart.setDate(previousStart.getDate() - durationDays);
+  
+  return {
+    startDate: previousStart.toISOString().split('T')[0],
+    endDate: previousEnd.toISOString().split('T')[0]
+  };
+}
+
+/* 🔷 DASHBOARD DATA */
+async function loadDashboard(period = 'this_month') {
+  const recentTxContainer = document.getElementById('recentTransactions');
+  const budgetHealthCallout = document.getElementById('budgetHealthCallout');
+  try {
+    recentTxContainer.innerHTML = FinanceUtils.createSkeleton(3);
+
+    const { startDate, endDate } = getDateRange(period);
+    const dateQuery = (startDate && endDate) ? `&start_date=${startDate}&end_date=${endDate}` : '';
+
+    const [categoriesResult, dashResult, totalResult, allTimeResult] = await Promise.allSettled([
+      FinanceUtils.fetchWithAuth('/categories'),
+      FinanceUtils.fetchWithAuth('/summary/dashboard?minimal=true' + dateQuery),
+      FinanceUtils.fetchWithAuth(`/summary?end_date=${endDate}`),
+      FinanceUtils.fetchWithAuth('/summary')
+    ]);
+
+    if (dashResult.status !== 'fulfilled' || !dashResult.value?.success) {
+      throw new Error(dashResult.reason?.message || dashResult.value?.error || 'Failed to load dashboard');
+    }
+
+    const categories = categoriesResult.status === 'fulfilled' && categoriesResult.value?.success
+      ? categoriesResult.value.data
+      : [];
+    const categoryMap = categories.reduce((map, cat) => {
+      map[cat.id] = cat.name;
+      return map;
+    }, {});
+    const dashData = dashResult.value.data;
+    const allTimeBalance = totalResult.status === 'fulfilled' && totalResult.value?.success
+      ? totalResult.value.data.balance
+      : dashData.overview.balance;
+
+    // Fetch previous cumulative balance for percentage change
+    let percentageChange = null;
+    let previousPeriodLabel = '';
+    try {
+      const prevRange = getPreviousPeriodRange(period);
+      if (prevRange.endDate) {
+        const prevTotalRes = await FinanceUtils.fetchWithAuth(`/summary?end_date=${prevRange.endDate}`);
+        if (prevTotalRes.success) {
+          const prevCumulativeBalance = prevTotalRes.data.balance;
+          const currentCumulativeBalance = allTimeBalance;
+          
+          if (prevCumulativeBalance === 0) {
+            percentageChange = currentCumulativeBalance === 0 ? 0 : (currentCumulativeBalance > 0 ? 100 : -100);
+          } else {
+            percentageChange = ((currentCumulativeBalance - prevCumulativeBalance) / Math.abs(prevCumulativeBalance)) * 100;
+          }
+          
+          switch(period) {
+            case 'this_month': previousPeriodLabel = 'from last month'; break;
+            case 'last_month': previousPeriodLabel = 'from two months ago'; break;
+            case 'last_3_months': previousPeriodLabel = 'from previous 3 months'; break;
+            default: previousPeriodLabel = 'from previous period';
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to fetch previous period data:', err);
+    }
+
+    // Update stats
+    document.getElementById('balance').textContent = FinanceUtils.formatCurrency(allTimeBalance);
+    document.getElementById('income').textContent = FinanceUtils.formatCurrency(dashData.overview.total_income);
+    
+    const actualAllTimeBalance = allTimeResult.status === 'fulfilled' && allTimeResult.value?.success
+      ? allTimeResult.value.data.balance
+      : allTimeBalance;
+    document.getElementById('savings').textContent = FinanceUtils.formatCurrency(actualAllTimeBalance);
+
+    // Update percentage change badge
+    const badge = document.getElementById('balanceChangeBadge');
+    const percentageEl = document.getElementById('balancePercentage');
+    const periodEl = document.getElementById('balancePeriod');
+    if (badge && percentageEl && periodEl) {
+      if (percentageChange !== null) {
+        const isPositive = percentageChange >= 0;
+        percentageEl.className = isPositive ? 'badge badge-success' : 'badge badge-danger';
+        badge.style.display = 'flex';
+        percentageEl.textContent = (isPositive ? '+' : '') + Math.abs(percentageChange).toFixed(1) + '%';
+        periodEl.textContent = previousPeriodLabel;
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+
+    try {
+      const budgetsRes = await FinanceUtils.fetchWithAuth('/budgets/summary');
+      if (budgetsRes.success && budgetHealthCallout) {
+        renderBudgetHealthCallout(budgetsRes.data, categoryMap);
+      }
+    } catch (budgetError) {
+      console.warn('Failed to load budget health:', budgetError);
+      if (budgetHealthCallout) {
+        renderBudgetHealthCallout([], categoryMap, true);
+      }
+    }
+
+    // Update recent transactions
+    recentTxContainer.innerHTML = '';
+    if (dashData.recent_transactions.length === 0) {
+      recentTxContainer.innerHTML = FinanceUtils.createStateMarkup({
+        title: 'No recent activity yet',
+        message: 'Create your first income or expense entry to start building a timeline.',
+        compact: true
+      });
+    } else {
+      dashData.recent_transactions.forEach(t => {
+        const categoryName = categoryMap[t.category_id] || 'Unknown';
+        const isIncome = t.amount > 0;
+        const amountSign = isIncome ? '+' : '-';
+        recentTxContainer.innerHTML += `
+          <div class="list-row flex flex-col gap-4 md:flex-row md:items-center md:justify-between p-4 rounded-[18px] group">
+            <div class="flex items-center gap-4 min-w-0">
+              <div class="w-12 h-12 rounded-full flex items-center justify-center text-lg" style="${isIncome ? 'background: rgba(47, 191, 113, 0.12); color: var(--apple-green);' : 'background: rgba(148, 163, 184, 0.14); color: var(--text-muted);'}">
+                ${isIncome ? '💰' : '💸'}
+              </div>
+              <div class="min-w-0">
+                <p class="font-bold text-gray-900 dark:text-white truncate">${categoryName}</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 font-medium truncate">${t.description || '-'}</p>
+              </div>
+            </div>
+            <div class="text-left md:text-right">
+              <p class="font-bold" style="color: ${isIncome ? 'var(--apple-green)' : 'var(--text-main)'};">${amountSign}${FinanceUtils.formatCurrency(Math.abs(t.amount))}</p>
+              <p class="text-[10px] text-gray-400 font-bold uppercase tracking-tight">${t.date ? FinanceUtils.formatDate(t.date) : '-'}</p>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    const [monthResult, categoryResult] = await Promise.allSettled([
+      FinanceUtils.fetchWithAuth('/summary/monthly' + (dateQuery ? '?' + dateQuery.substring(1) : '')),
+      FinanceUtils.fetchWithAuth('/summary/by-category?type=expense' + dateQuery)
+    ]);
+    if (monthResult.status === 'fulfilled' && monthResult.value?.success) {
+      updateChart(monthResult.value.data);
+    } else {
+      updateChart([]);
+      console.warn('Monthly chart data unavailable:', monthResult.reason || monthResult.value);
+    }
+
+    if (categoryResult.status === 'fulfilled' && categoryResult.value?.success) {
+      updateCategoryChart(categoryResult.value.data);
+    } else {
+      updateCategoryChart([]);
+      console.warn('Category chart data unavailable:', categoryResult.reason || categoryResult.value);
+    }
+
+  } catch (err) {
+    console.error('Dashboard load error:', err);
+    FinanceUtils.showToast('Dashboard is temporarily unavailable. Please retry in a moment.', 'error');
+    recentTxContainer.innerHTML = FinanceUtils.createStateMarkup({
+      title: 'Dashboard unavailable',
+      message: 'We could not load your latest account overview. Please try again in a moment.',
+      tone: 'error'
+    });
+  }
+}
+
+function renderBudgetHealthCallout(summaryData, categoryMap = {}, hasError = false) {
+  const container = document.getElementById('budgetHealthCallout');
+  if (!container) return;
+
+  if (hasError) {
+    container.innerHTML = `
+      <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <p class="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2">Budget Health</p>
+          <h3 class="text-xl font-bold text-gray-900 dark:text-white">Budget status is temporarily unavailable</h3>
+          <p class="dashboard-note mt-2">Your dashboard loaded, but we could not fetch the latest budget signals just now.</p>
+        </div>
+        <a href="budgets.html" class="btn btn-secondary">Open Budgets</a>
+      </div>
+    `;
+    return;
+  }
+
+  if (!summaryData.length) {
+    container.innerHTML = `
+      <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <p class="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2">Budget Health</p>
+          <h3 class="text-xl font-bold text-gray-900 dark:text-white">No active budgets yet</h3>
+          <p class="dashboard-note mt-2">Create a few category budgets so Finly can flag overspending before it grows.</p>
+        </div>
+        <a href="budgets.html" class="btn btn-primary">Set Your First Budget</a>
+      </div>
+    `;
+    return;
+  }
+
+  const overBudget = summaryData.filter((item) => item.is_over_budget);
+  const nearLimit = summaryData.filter((item) => !item.is_over_budget && item.percentage_used >= 85);
+  const healthy = summaryData.length - overBudget.length - nearLimit.length;
+  const highlightItems = [...overBudget, ...nearLimit].slice(0, 2).map((item) => categoryMap[item.category_id] || 'Uncategorized');
+
+  let title = 'All budgets are in a healthy range';
+  let message = `${healthy} ${healthy === 1 ? 'category is' : 'categories are'} pacing safely against plan.`;
+  let actionLabel = 'Review Budgets';
+
+  if (overBudget.length > 0) {
+    title = `${overBudget.length} ${overBudget.length === 1 ? 'category is' : 'categories are'} over budget`;
+    message = `${highlightItems.join(' and ') || 'A few categories'} need attention now.`;
+    actionLabel = 'Review Overages';
+  } else if (nearLimit.length > 0) {
+    title = `${nearLimit.length} ${nearLimit.length === 1 ? 'category is' : 'categories are'} near the limit`;
+    message = `${highlightItems.join(' and ') || 'A few categories'} are getting close to the cap.`;
+    actionLabel = 'Check Budgets';
+  }
+
+  container.innerHTML = `
+    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div>
+        <p class="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2">Budget Health</p>
+        <h3 class="text-xl font-bold text-gray-900 dark:text-white">${title}</h3>
+        <p class="dashboard-note mt-2">${message}</p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <span class="context-chip context-chip-user">${summaryData.length} active budgets</span>
+        ${overBudget.length ? `<span class="context-chip context-chip-admin">${overBudget.length} over budget</span>` : ''}
+        ${nearLimit.length ? `<span class="context-chip context-chip-user">${nearLimit.length} near limit</span>` : ''}
+        <a href="budgets.html" class="btn btn-secondary">${actionLabel}</a>
+      </div>
+    </div>
+  `;
+}
+
+/* 🔷 CHARTS */
+function updateChart(monthlyData) {
+  const canvas = document.getElementById('chart');
+  const emptyState = document.getElementById('cashflowEmpty');
+  const labels = [];
+  const incomeData = [];
+  const expenseData = [];
+  const grouped = {};
+  monthlyData.forEach(item => {
+    const key = `${item.year}-${String(item.month).padStart(2, '0')}`;
+    if (!grouped[key]) grouped[key] = { income: 0, expense: 0 };
+    if (item.type === 'income') grouped[key].income += item.total;
+    else grouped[key].expense += Math.abs(item.total);
+  });
+  const sortedKeys = Object.keys(grouped).sort();
+  sortedKeys.forEach(key => {
+    const [year, month] = key.split('-');
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    labels.push(monthNames[parseInt(month) - 1]);
+    incomeData.push(grouped[key].income);
+    expenseData.push(grouped[key].expense);
+  });
+
+  const hasData = labels.length > 0 && (incomeData.some(value => value > 0) || expenseData.some(value => value > 0));
+  if (window.chartInstance) {
+    window.chartInstance.destroy();
+    window.chartInstance = null;
+  }
+  canvas.classList.toggle('hidden', !hasData);
+  emptyState.classList.toggle('hidden', hasData);
+  if (!hasData) return;
+  window.chartInstance = FinanceCharts.createCashflowLineChart(canvas, {
+    labels, incomeData, expenseData, palette: 'brand', showLegend: false
+  });
+}
+
+function updateCategoryChart(expenseData) {
+  const canvas = document.getElementById('categoryChart');
+  const emptyState = document.getElementById('spendingEmpty');
+  if (window.categoryChartInstance) {
+    window.categoryChartInstance.destroy();
+    window.categoryChartInstance = null;
+  }
+  
+  const labels = expenseData.map(item => item.category);
+  const values = expenseData.map(item => Math.abs(item.total));
+  const totalExpense = values.reduce((a, b) => a + b, 0);
+  const hasData = labels.length > 0 && totalExpense > 0;
+  canvas.classList.toggle('hidden', !hasData);
+  emptyState.classList.toggle('hidden', hasData);
+  if (!hasData) return;
+
+  window.categoryChartInstance = FinanceCharts.createSpendingDonutChart(canvas, {
+    labels,
+    data: values,
+    total: totalExpense,
+    palette: 'brand',
+    centerLabel: 'Total expenses',
+    showLegend: true
+  });
+}
+
+// Search
+const searchInput = document.getElementById('dashboardSearch');
+if (searchInput) {
+  searchInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter' && searchInput.value.trim()) {
+      window.location.href = `transactions.html?search=${encodeURIComponent(searchInput.value.trim())}`;
+    }
+  });
+}
+
+// Period Filter
+const periodFilter = document.getElementById('categoryPeriodFilter');
+if (periodFilter) {
+  periodFilter.addEventListener('change', (e) => loadDashboard(e.target.value));
+}
+
+// Init
+loadUserData();
+loadDashboard();
+</script>
+
+</body>
+</html>

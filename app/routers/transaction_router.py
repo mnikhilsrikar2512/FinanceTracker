@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import func, or_
 from datetime import datetime
 from typing import List
 from app.schemas.transaction import TransactionCreate, TransactionUpdate, TransactionResponse
@@ -19,6 +20,7 @@ router = APIRouter(prefix="/transactions", tags=["Transactions"])
 def enrich_transaction(txn: Transaction, db: Session) -> dict:
     """Add type field to transaction"""
     cat = db.query(Category).filter(Category.id == txn.category_id).first()
+    user = db.query(User).filter(User.id == txn.user_id).first()
     return {
         "id": txn.id,
         "user_id": txn.user_id,
@@ -30,7 +32,11 @@ def enrich_transaction(txn: Transaction, db: Session) -> dict:
         "created_at": txn.created_at,
         "modified_by": txn.modified_by,
         "modified_at": txn.modified_at,
-        "type": cat.type if cat else None
+        "is_deleted": txn.is_deleted,
+        "type": cat.type if cat else None,
+        "user_email": user.email if user else None,
+        "user_name": user.name if user else None,
+        "category_name": cat.name if cat else None,
     }
 
 
@@ -58,6 +64,7 @@ def get_transactions(
     limit: int = Query(default=20, ge=1, le=100, description="Number of records"),
     offset: int = Query(default=0, ge=0, description="Offset for pagination"),
     include_deleted: bool = Query(default=False, description="Include soft-deleted transactions"),
+    archive_filter: str = Query(default="active", description="Archive filter: active, archived, all"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -69,15 +76,34 @@ def get_transactions(
         query = db.query(Transaction)
     else:
         query = db.query(Transaction).filter(Transaction.user_id == current_user.id)
-    
-    if not include_deleted:
-        query = query.filter(Transaction.is_deleted != True)
+
+    category_joined = False
+    user_joined = False
     
     filters = {}
+
+    normalized_archive_filter = str(archive_filter or "active").lower()
+    if normalized_archive_filter not in {"active", "archived", "all"}:
+        raise HTTPException(status_code=400, detail="Invalid archive_filter. Use active, archived, or all.")
+
+    if include_deleted and normalized_archive_filter == "active":
+        normalized_archive_filter = "all"
+
+    if normalized_archive_filter == "archived":
+        query = query.filter(Transaction.is_deleted == True)
+    elif normalized_archive_filter == "all":
+        pass
+    else:
+        query = query.filter(Transaction.is_deleted != True)
+
+    filters["archive_filter"] = normalized_archive_filter
     
     if type:
+        if not category_joined:
+            query = query.outerjoin(Category, Transaction.category_id == Category.id)
+            category_joined = True
         cat_type = "income" if type.lower() == "income" else "expense"
-        query = query.join(Category).filter(Category.type == cat_type)
+        query = query.filter(Category.type == cat_type)
         filters["type"] = type
     
     if category_id:
@@ -93,28 +119,92 @@ def get_transactions(
         filters["end_date"] = end_date.isoformat()
     
     if min_amount is not None:
-        query = query.filter(Transaction.amount >= min_amount)
+        query = query.filter(func.abs(Transaction.amount) >= min_amount)
         filters["min_amount"] = min_amount
     
     if max_amount is not None:
-        query = query.filter(Transaction.amount <= max_amount)
+        query = query.filter(func.abs(Transaction.amount) <= max_amount)
         filters["max_amount"] = max_amount
     
     if search:
-        query = query.filter(Transaction.description.ilike(f"%{search}%"))
-        filters["search"] = search
+        search_term = search.strip()
+        if search_term:
+            if not category_joined:
+                query = query.outerjoin(Category, Transaction.category_id == Category.id)
+                category_joined = True
+            conditions = [
+                Transaction.description.ilike(f"%{search_term}%"),
+                Category.name.ilike(f"%{search_term}%")
+            ]
+            if getattr(current_user, 'role', None) == 'admin':
+                if not user_joined:
+                    query = query.outerjoin(User, Transaction.user_id == User.id)
+                    user_joined = True
+                conditions.extend([
+                    User.email.ilike(f"%{search_term}%"),
+                    User.name.ilike(f"%{search_term}%")
+                ])
+            query = query.filter(or_(*conditions))
+            filters["search"] = search_term
 
     total = query.count()
-    
-    sort_column = getattr(Transaction, sort_by, Transaction.date)
-    if sort_order == "desc":
-        query = query.order_by(sort_column.desc())
+
+    allowed_sorts = {
+        "date": Transaction.date,
+        "amount": func.abs(Transaction.amount),
+        "created_at": Transaction.created_at,
+        "description": Transaction.description,
+    }
+    sort_column = allowed_sorts.get(sort_by, Transaction.date)
+    normalized_sort_by = sort_by if sort_by in allowed_sorts else "date"
+    normalized_sort_order = "asc" if str(sort_order).lower() == "asc" else "desc"
+    filters["sort_by"] = normalized_sort_by
+    filters["sort_order"] = normalized_sort_order
+
+    if normalized_sort_order == "desc":
+        query = query.order_by(sort_column.desc(), Transaction.id.desc())
     else:
-        query = query.order_by(sort_column.asc())
+        query = query.order_by(sort_column.asc(), Transaction.id.asc())
     
     results = query.offset(offset).limit(limit).all()
-    
-    data = [enrich_transaction(t, db) for t in results]
+
+    category_lookup = {}
+    user_lookup = {}
+    category_ids = {t.category_id for t in results if t.category_id}
+    user_ids = {t.user_id for t in results if t.user_id}
+
+    if category_ids:
+        category_lookup = {
+            row.id: {"name": row.name, "type": row.type}
+            for row in db.query(Category).filter(Category.id.in_(category_ids)).all()
+        }
+    if user_ids:
+        user_lookup = {
+            row.id: {"email": row.email, "name": row.name}
+            for row in db.query(User).filter(User.id.in_(user_ids)).all()
+        }
+
+    data = []
+    for txn in results:
+        category = category_lookup.get(txn.category_id, {})
+        user = user_lookup.get(txn.user_id, {})
+        data.append({
+            "id": txn.id,
+            "user_id": txn.user_id,
+            "category_id": txn.category_id,
+            "amount": txn.amount,
+            "description": txn.description,
+            "date": txn.date,
+            "created_by": txn.created_by,
+            "created_at": txn.created_at,
+            "modified_by": txn.modified_by,
+            "modified_at": txn.modified_at,
+            "is_deleted": txn.is_deleted,
+            "type": category.get("type"),
+            "category_name": category.get("name"),
+            "user_email": user.get("email"),
+            "user_name": user.get("name"),
+        })
     
     return paginated_response(data, total, limit, offset, filters)
 
@@ -134,6 +224,43 @@ def get_recent_transactions(
     return success_response(data=data)
 
 
+@router.put("/restore-many")
+def bulk_restore_transactions(
+    ids: str = Query(description="Comma-separated transaction IDs to restore"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if not ids:
+        raise HTTPException(status_code=400, detail="No transaction IDs provided")
+
+    try:
+        id_list = [int(x.strip()) for x in ids.split(",") if x.strip()]
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid IDs format. Use comma-separated integers.")
+
+    if not id_list:
+        raise HTTPException(status_code=400, detail="No transaction IDs provided")
+
+    query = db.query(Transaction).filter(Transaction.id.in_(id_list))
+    if getattr(current_user, 'role', None) != 'admin':
+        query = query.filter(Transaction.user_id == current_user.id)
+    txns = query.all()
+
+    if not txns:
+        raise HTTPException(status_code=404, detail="No transactions found")
+
+    restored_count = 0
+    for txn in txns:
+        if txn.is_deleted:
+            txn.is_deleted = False
+            txn.modified_by = current_user.id
+            txn.modified_at = datetime.utcnow()
+            restored_count += 1
+
+    db.commit()
+    return success_response(message=f"{restored_count} transaction(s) restored")
+
+
 @router.put("/{transaction_id}", response_model=dict)
 def update_transaction(
     transaction_id: int,
@@ -145,7 +272,7 @@ def update_transaction(
     txn = transaction_repo.get_transaction(db, transaction_id)
     if not txn:
         raise HTTPException(status_code=404, detail="Transaction not found")
-    if txn.user_id != current_user.id:
+    if txn.user_id != current_user.id and getattr(current_user, 'role', None) != 'admin':
         raise HTTPException(status_code=403, detail="You can only update your own transactions")
     
     result = transaction_service.update_transaction(db, transaction_id, data, current_user.id)
@@ -163,7 +290,7 @@ def delete_transaction(
     txn = transaction_repo.get_transaction(db, transaction_id)
     if not txn:
         raise HTTPException(status_code=404, detail="Transaction not found")
-    if txn.user_id != current_user.id:
+    if txn.user_id != current_user.id and getattr(current_user, 'role', None) != 'admin':
         raise HTTPException(status_code=403, detail="You can only delete your own transactions")
     
     if mode == "hard":
@@ -200,10 +327,10 @@ def bulk_delete_transactions(
     if not id_list:
         raise HTTPException(status_code=400, detail="No transaction IDs provided")
     
-    txns = db.query(Transaction).filter(
-        Transaction.id.in_(id_list),
-        Transaction.user_id == current_user.id
-    ).all()
+    query = db.query(Transaction).filter(Transaction.id.in_(id_list))
+    if getattr(current_user, 'role', None) != 'admin':
+        query = query.filter(Transaction.user_id == current_user.id)
+    txns = query.all()
     
     if not txns:
         raise HTTPException(status_code=404, detail="No transactions found")
@@ -219,6 +346,28 @@ def bulk_delete_transactions(
     db.commit()
     action = "permanently deleted" if mode == "hard" else "archived"
     return success_response(message=f"{deleted_count} transaction(s) {action}")
+
+
+@router.put("/{transaction_id}/restore")
+def restore_transaction(
+    transaction_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    txn = db.query(Transaction).filter(Transaction.id == transaction_id).first()
+    if not txn:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    if txn.user_id != current_user.id and getattr(current_user, 'role', None) != 'admin':
+        raise HTTPException(status_code=403, detail="You can only restore your own transactions")
+    if txn.is_deleted != True:
+        return success_response(message="Transaction is already active", data=enrich_transaction(txn, db))
+
+    txn.is_deleted = False
+    txn.modified_by = current_user.id
+    txn.modified_at = datetime.utcnow()
+    db.commit()
+    db.refresh(txn)
+    return success_response(message="Transaction restored", data=enrich_transaction(txn, db))
 
 
 @router.get("/export")
@@ -280,3 +429,18 @@ def export_transactions(
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename=transactions_{current_user.id}.csv"}
     )
+
+
+@router.get("/{transaction_id}", response_model=dict)
+def get_transaction(
+    transaction_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    txn = db.query(Transaction).filter(Transaction.id == transaction_id).first()
+    if not txn:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    if txn.user_id != current_user.id and getattr(current_user, 'role', None) != 'admin':
+        raise HTTPException(status_code=403, detail="You can only view your own transactions")
+
+    return success_response(data=enrich_transaction(txn, db))

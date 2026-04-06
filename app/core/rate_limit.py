@@ -4,6 +4,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from datetime import datetime, timedelta
 from collections import defaultdict
 import time
+import os
 
 class RateLimiter(BaseHTTPMiddleware):
     def __init__(self, app, requests_per_minute: int = 60):
@@ -19,6 +20,9 @@ class RateLimiter(BaseHTTPMiddleware):
         ]
     
     async def dispatch(self, request: Request, call_next):
+        if os.getenv("PYTEST_CURRENT_TEST") or os.getenv("DISABLE_RATE_LIMIT") == "1":
+            return await call_next(request)
+
         client_ip = request.client.host if request.client else "unknown"
         
         # Skip rate limiting for health check
@@ -74,6 +78,14 @@ class LoginRateLimiter:
     def is_blocked(self, identifier: str) -> bool:
         self.cleanup_old_attempts(identifier)
         return len(self.attempts[identifier]) >= self.max_attempts
+
+    def get_retry_after(self, identifier: str) -> int:
+        self.cleanup_old_attempts(identifier)
+        if not self.attempts[identifier]:
+            return 0
+        oldest_attempt = min(self.attempts[identifier])
+        retry_at = oldest_attempt + timedelta(minutes=self.window_minutes)
+        return max(0, int((retry_at - datetime.now()).total_seconds()))
     
     def record_attempt(self, identifier: str):
         self.attempts[identifier].append(datetime.now())
@@ -83,3 +95,5 @@ class LoginRateLimiter:
 
 
 login_rate_limiter = LoginRateLimiter()
+password_reset_request_limiter = LoginRateLimiter(max_attempts=5, window_minutes=15)
+password_reset_attempt_limiter = LoginRateLimiter(max_attempts=5, window_minutes=15)

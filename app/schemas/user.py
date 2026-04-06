@@ -1,6 +1,18 @@
 from pydantic import BaseModel, EmailStr, field_validator
 from datetime import datetime
 
+
+def validate_password_strength(value: str, field_name: str = "Password") -> str:
+    if len(value) < 8:
+        raise ValueError(f"{field_name} must be at least 8 characters")
+    if not any(char.islower() for char in value):
+        raise ValueError(f"{field_name} must include a lowercase letter")
+    if not any(char.isupper() for char in value):
+        raise ValueError(f"{field_name} must include an uppercase letter")
+    if not any(char.isdigit() for char in value):
+        raise ValueError(f"{field_name} must include a number")
+    return value
+
 class UserCreate(BaseModel):
     name: str
     email: EmailStr
@@ -14,9 +26,7 @@ class UserCreate(BaseModel):
 
     @field_validator("password")
     def password_min_length(cls, v):
-        if len(v) < 6:
-            raise ValueError("Password must be at least 6 characters")
-        return v
+        return validate_password_strength(v, "Password")
 
 
 class UserLogin(BaseModel):
@@ -30,9 +40,7 @@ class ChangePassword(BaseModel):
 
     @field_validator("new_password")
     def new_password_min_length(cls, v):
-        if len(v) < 6:
-            raise ValueError("New password must be at least 6 characters")
-        return v
+        return validate_password_strength(v, "New password")
 
 
 class UserResponse(BaseModel):
@@ -64,6 +72,4 @@ class ResetPassword(BaseModel):
 
     @field_validator("new_password")
     def new_password_min_length(cls, v):
-        if len(v) < 6:
-            raise ValueError("Password must be at least 6 characters")
-        return v
+        return validate_password_strength(v, "Password")

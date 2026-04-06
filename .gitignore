@@ -10,6 +10,9 @@ env/
 dist/
 build/
 
+# Node
+node_modules/
+
 # Environment
 .env
 

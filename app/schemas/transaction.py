@@ -1,5 +1,5 @@
 from pydantic import BaseModel, field_validator, computed_field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 
 class TransactionCreate(BaseModel):
     category_id: int
@@ -8,18 +8,19 @@ class TransactionCreate(BaseModel):
     date: datetime
 
     @field_validator("amount")
-    def amount_positive(cls, v):
-        if v <= 0:
-            raise ValueError("Amount must be positive")
-        if v > 1000000000:
+    def amount_non_zero(cls, v):
+        if v == 0:
+            raise ValueError("Amount cannot be zero")
+        if abs(v) > 1000000000:
             raise ValueError("Amount is too large")
         return v
 
     @field_validator("date")
     def date_not_far_future(cls, v):
-        if v > datetime.utcnow() + timedelta(days=365):
+        compare_date = v if v.tzinfo is not None else v.replace(tzinfo=UTC)
+        if compare_date > datetime.now(UTC) + timedelta(days=365):
             raise ValueError("Date cannot be more than 1 year in the future")
-        if v < datetime(2000, 1, 1):
+        if compare_date < datetime(2000, 1, 1, tzinfo=UTC):
             raise ValueError("Date cannot be before year 2000")
         return v
     
@@ -30,12 +31,13 @@ class TransactionUpdate(BaseModel):
     amount: float | None = None
     description: str | None = None
     category_id: int | None = None
+    date: datetime | None = None
 
     @field_validator("amount")
-    def amount_positive(cls, v):
-        if v is not None and v <= 0:
-            raise ValueError("Amount must be positive")
-        if v is not None and v > 1000000000:
+    def amount_non_zero(cls, v):
+        if v is not None and v == 0:
+            raise ValueError("Amount cannot be zero")
+        if v is not None and abs(v) > 1000000000:
             raise ValueError("Amount is too large")
         return v
 

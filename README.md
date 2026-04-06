@@ -1,599 +1,436 @@
-# Personal Finance Tracker API
+# Finly
 
-## Project Overview
+Finly is a finance-tracking web app with a FastAPI backend and a static frontend served from the same app. It supports two main experiences:
 
-This project is a **Personal Finance Tracker API** built using **FastAPI**, designed to manage user finances including income and expenses, categorize transactions, and maintain an audit trail using MongoDB.
+- `User workspace`: transactions, reports, budgets, and personal activity
+- `Admin workspace`: users, logs, system transactions, categories, and system analytics
 
-The system uses:
+The app now also includes a proper landing flow:
 
-- **SQL Server (Azure SQL Edge)** → Core transactional data
-- **MongoDB** → Activity logging (audit trail)
+- `/` -> product landing page
+- `/login.html` -> login
+- `/signup.html` -> signup
+- `/support.html` -> support and customer-help page
+- `/forgot-password.html` -> request password reset code
+- `/reset-password.html` -> verify code and set a new password
 
----
+## What’s In This Repo
 
-## Tech Stack
+- `app/` -> FastAPI API, auth, models, routers, services, repositories
+- `Project/` -> frontend HTML, CSS, and JavaScript
+- `docker-compose.yml` -> local SQL Server + MongoDB services
+- `Makefile` -> common local commands
+- `PAGES_GUIDE.md` -> plain-language guide to every page and section in the product
 
-- Python (FastAPI)
-- SQL Server (Docker - Azure SQL Edge)
-- MongoDB (Docker)
-- SQLAlchemy ORM
-- Pydantic v2
-- PyODBC (ODBC Driver 18)
-- JWT Authentication
-- Bcrypt password hashing
+## Stack
 
----
+- FastAPI
+- SQLAlchemy
+- SQL Server / Azure SQL Edge
+- MongoDB
+- PyODBC
+- JWT auth
+- Vanilla HTML/CSS/JS frontend
+- Chart.js
 
-## Architecture
+## Product Areas
 
-The project follows a clean layered architecture:
+### User side
 
-```
-Router → Service → Repository → Database
-```
+- Landing page, login, signup, support, and password recovery
+- Dashboard
+- Transactions with filtering, sorting, export, archive/delete
+- Reports and charts
+- Budgets with progress tracking
+- Notifications / activity history
 
-```
-app/
-├── routers/       # API route definitions
-├── services/      # Business logic
-├── repositories/  # Database operations
-├── models/        # SQLAlchemy models
-├── schemas/       # Pydantic schemas
-├── core/          # Config, DB, Exceptions, Auth, Rate Limit, Email
-```
+### Admin side
 
----
+- Admin dashboard
+- User management
+- System transactions
+- Category oversight
+- Activity logs
+- System analytics via `/api/v1/admin/analytics`
 
-## Features Implemented
+## API Shape
 
-### Authentication ✅
-- User signup with email/password (EmailStr validation)
-- User login with JWT token generation
-- JWT token validation on protected routes
-- Change password (with old password)
-- **Forgot Password** - Request reset code via email
-- **Reset Password** - Set new password with verification code
-- Password hashing with bcrypt
-- Role-based access control (user/admin)
-- Rate limiting (60 req/min global, 5 login attempts/15min)
+The API is versioned under `/api/v1`.
 
-### Profile Management ✅
-- Get user profile (`GET /users/me`)
-- Update user profile (`PUT /users/me`)
-- Delete account (`DELETE /users/me`)
+Examples:
 
-### Transactions ✅
-- Create/Read/Update/Delete transactions
-- Transaction validation (amount > 0, valid category)
-- Duplicate transaction prevention
-- User-specific transaction access (security)
-- **Transaction type** in response (income/expense)
-- Audit fields: `created_by`, `modified_by`, `modified_at`
-- Default sorting: `date desc`
-- Recent transactions endpoint: `/transactions/recent`
-- **Soft delete**: `DELETE /transactions/{id}?mode=soft` (archives transaction)
-- **Hard delete**: `DELETE /transactions/{id}?mode=hard` (permanent delete)
-- **Include deleted**: `GET /transactions?include_deleted=true` (show archived transactions)
-- **Bulk delete**: `DELETE /transactions?ids=1,2,3` (supports soft/hard)
-- **Export CSV**: `GET /transactions/export`
-- All queries automatically filter out soft-deleted transactions
+- `/api/v1/auth/login`
+- `/api/v1/users/me`
+- `/api/v1/transactions`
+- `/api/v1/summary/insights`
+- `/api/v1/budgets`
+- `/api/v1/admin/analytics`
 
-### Categories ✅
-- Create categories (income/expense type)
-- List all categories with usage stats (usage_count, total_amount)
-- Delete category protection (prevents deletion if in use)
-- **Reassign on delete**: `DELETE /categories/{id}?reassign_to={new_id}`
+Legacy top-level paths such as `/auth/...` and `/transactions/...` are redirected to `/api/v1/...`.
 
-### Analytics/Summary ✅
-- Total income, expense, balance
-- Breakdown by category
-- Monthly summary
-- **Dashboard** - Full overview with filters
-- **Insights** - Spending trends, top category, avg transaction
+## Response Format
 
-### Response Format ✅
-All endpoints return standardized format:
+Most endpoints return:
+
 ```json
 {
   "success": true,
-  "data": {...},
-  "meta": {...}
+  "data": {},
+  "meta": {}
 }
 ```
 
-**Pagination Meta:**
-- `total`, `limit`, `offset`, `page`, `total_pages`, `has_next`, `has_prev`, `filters`
+Paginated endpoints include metadata such as:
 
-**Rate Limit Headers:**
-- `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`
+- `total`
+- `limit`
+- `offset`
+- `page`
+- `total_pages`
+- `has_next`
+- `has_prev`
+- `filters`
 
-### Error Handling ✅
-- Custom exception classes with granular error codes
-- Global exception handlers
-- Error codes: ERR_NOT_FOUND, ERR_UNAUTHORIZED, ERR_FORBIDDEN, ERR_VALIDATION, ERR_INVALID_DATE_RANGE, ERR_INVALID_AMOUNT, ERR_INVALID_FILTER
+## Key Backend Areas
 
-### Logging ✅
-- MongoDB audit trail (non-blocking, fire-and-forget)
-- Action labels and descriptions
-- Entity types (user, transaction, category)
-- Entity IDs for traceability
-- **Log levels**: INFO, WARNING, ERROR
-- **Request ID** tracking across all requests (`X-Request-ID`)
-- **Log retention**: 90-day TTL auto-cleanup
-- **MongoDB indexes** for performance:
-  - timestamp, user_id+timestamp, action+timestamp
-  - entity_type+entity_id, request_id, level
+- `app/main.py`
+  mounts all routers under `/api/v1` and serves the frontend statically
+- `app/routers/`
+  HTTP endpoints
+- `app/services/`
+  business rules
+- `app/repositories/`
+  data access
+- `app/models/`
+  SQLAlchemy models
+- `app/core/`
+  auth, config, database, rate limiting, exception handling, Mongo integration
 
-### Response Headers ✅
-- `X-Request-ID` - Unique request identifier
-- `X-Process-Time` - Request processing time
-- `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`
+## Local Requirements
 
-**Pagination Meta:**
-- `total`, `limit`, `offset`, `page`, `total_pages`, `has_next`, `has_prev`, `filters`
+Before running locally, make sure you have:
 
-### Transaction Features ✅
-- Default sorting: date desc
-- Type field included in response
-- Recent transactions endpoint
-- Full filtering: type, category, date range, amount range, search
-- Monthly summary
+- Python 3.10+
+- ODBC Driver 18 for SQL Server
+- Docker and Docker Compose
 
-### Admin Features ✅
-- Admin dashboard with statistics
-- List all users with filters (status, search)
-- View user details
-- Block/unblock users
-- View any user's transactions
-- View any user's financial summary
-- Admin role protection
+## Environment Variables
 
-### Security ✅
-- JWT Authentication
-- Role-based access control
-- Users can only access own data
-- Input sanitization (XSS prevention)
-- Rate limiting
-- Email format validation
-- Password reset with verification code
+The app reads configuration from `.env`.
 
-### Error Handling ✅
-- Custom exception classes
-- Global exception handlers
-- Error codes for all errors
-- Detailed validation error messages
-- Database error handling
-- Structured JSON error responses
+Important values:
 
----
+- `DB_SERVER`
+- `DB_PORT`
+- `DB_NAME`
+- `DB_USER`
+- `DB_PASSWORD`
+- `MONGO_URI`
+- `MONGO_DB`
+- `JWT_SECRET`
+- `SMTP_HOST`
+- `SMTP_PORT`
+- `SMTP_USER`
+- `SMTP_PASSWORD`
+- `FROM_EMAIL`
+- `BREVO_API_KEY`
+- `BREVO_BASE_URL`
+- `BREVO_FROM_EMAIL`
+- `BREVO_FROM_NAME`
+- `APP_ENV`
+- `DEBUG_RESET_CODES`
 
-## API Endpoints
+Example `.env` values depend on your local setup. The repo already includes `.env.example` for reference.
 
-### Authentication
+Password reset emails now prefer SMTP, which means a Gmail account plus a Gmail app password works well for local and demo use. Brevo remains available as a fallback if SMTP is not configured or delivery fails.
 
-| Method | Endpoint          | Description                | Auth Required |
-|--------|-------------------|----------------------------|---------------|
-| POST   | /auth/signup      | Register new user         | No            |
-| POST   | /auth/login       | Login and get JWT token   | No            |
-| POST   | /auth/forgot-password | Request reset code   | No            |
-| POST   | /auth/reset-password  | Reset password        | No            |
-| PUT    | /auth/change-password | Change password        | Yes           |
+The app now also includes a small Node-based mail bridge using `nodemailer`, so Gmail delivery works cleanly with the installed Node dependency while the main API remains in FastAPI/Python.
 
-### Users
+Gmail setup notes:
 
-| Method | Endpoint         | Description           | Auth Required |
-|--------|------------------|-----------------------|---------------|
-| GET    | /users/me        | Get current user     | Yes           |
-| PUT    | /users/me        | Update profile       | Yes           |
-| DELETE | /users/me        | Delete account       | Yes           |
-| GET    | /users           | List all users       | Yes (Admin)   |
-| GET    | /users/{id}      | Get user by ID       | Yes (Self/Admin)|
+- set `SMTP_HOST=smtp.gmail.com`
+- set `SMTP_PORT=587`
+- set `SMTP_USER` to your Gmail address
+- set `SMTP_PASSWORD` to your Gmail app password
+- spaces in copied Gmail app passwords are normalized automatically
+- set `FROM_EMAIL` to the same Gmail address unless you have another verified sender
 
-### Categories
+Brevo setup notes:
 
-| Method | Endpoint         | Description                  | Auth Required |
-|--------|------------------|-----------------------------|---------------|
-| GET    | /categories      | Get all categories         | Yes           |
-| POST   | /categories      | Create category           | Yes           |
-| DELETE | /categories/{id} | Delete category (with reassign) | Yes |
+- `BREVO_API_KEY` is only needed if you want Brevo as a fallback or alternate provider
+- `BREVO_BASE_URL` defaults to `https://api.brevo.com`
+- `BREVO_FROM_EMAIL` controls the sender email shown to users
+- `BREVO_FROM_NAME` controls the sender display name
 
-### Transactions
+## Running Locally
 
-| Method | Endpoint                 | Description                | Auth Required |
-|--------|--------------------------|----------------------------|---------------|
-| GET    | /transactions            | Get user's transactions   | Yes           |
-| POST   | /transactions            | Create transaction        | Yes           |
-| GET    | /transactions/{id}       | Get transaction by ID     | Yes           |
-| PUT    | /transactions/{id}       | Update transaction       | Yes           |
-| DELETE | /transactions/{id}?mode=soft | Soft delete (archive)   | Yes           |
-| DELETE | /transactions/{id}?mode=hard | Permanent delete      | Yes           |
-| GET    | /transactions/recent     | Get recent transactions   | Yes           |
-| GET    | /transactions/export     | Export CSV                | Yes           |
-| DELETE | /transactions?ids=...    | Bulk delete               | Yes           |
-
-**Transaction Filters:**
-- `type` - income or expense
-- `category_id` - Filter by category ID
-- `start_date`, `end_date` - Date range
-- `min_amount`, `max_amount` - Amount range
-- `search` - Search in description
-- `sort_by` - date, amount, created_at
-- `sort_order` - asc, desc (default: desc)
-- `limit`, `offset` - Pagination (default limit: 20)
-
-### Analytics
-
-| Method | Endpoint                    | Description                   | Auth Required |
-|--------|-----------------------------|-------------------------------|---------------|
-| GET    | /summary                    | Total income, expense, balance| Yes           |
-| GET    | /summary/by-category        | Breakdown by category        | Yes           |
-| GET    | /summary/monthly            | Monthly income/expense       | Yes           |
-| GET    | /summary/dashboard          | Full user dashboard (filterable)| Yes           |
-| GET    | /summary/dashboard?minimal=true | Lightweight dashboard    | Yes           |
-| GET    | /summary/insights           | Spending trends, top category| Yes           |
-
-**Dashboard Filters:** `start_date`, `end_date`, `type`, `category_id`, `minimal`
-
-### Logs
-
-| Method | Endpoint         | Description              | Auth Required |
-|--------|------------------|-------------------------|---------------|
-| GET    | /logs            | Get user's logs        | Yes           |
-| GET    | /logs/recent     | Get recent logs        | Yes (Admin)   |
-
-### Admin (Admin Only)
-
-| Method | Endpoint                       | Description                   |
-|--------|--------------------------------|-------------------------------|
-| GET    | /admin/dashboard               | Admin dashboard stats        |
-| GET    | /admin/users                   | List all users               |
-| GET    | /admin/users/{id}              | Get user details             |
-| PUT    | /admin/users/{id}/block        | Block a user                 |
-| PUT    | /admin/users/{id}/unblock      | Unblock a user               |
-| GET    | /admin/users/{id}/transactions | View user's transactions     |
-| GET    | /admin/users/{id}/summary     | View user's financial summary|
-| GET    | /admin/categories/stats        | Category usage statistics    |
-
-**Admin User Filters:**
-- `status` - active, inactive, blocked
-- `role` - user, admin
-- `search` - Search by name/email
-- `created_after`, `created_before` - Date range
-- `sort_by` - created_at, name, email
-- `sort_order` - asc, desc
-- `limit`, `offset` - Pagination
-
-**Admin Transaction Filters:**
-- `type` - income or expense
-- `category_id`, `category_name` - Filter by category
-- `start_date`, `end_date` - Date range
-- `min_amount`, `max_amount` - Amount range
-- `search` - Search in description
-
-### Logs ✅
-
-| Method | Endpoint         | Description              | Auth Required |
-|--------|------------------|-------------------------|---------------|
-| GET    | /logs            | Get user's logs        | Yes           |
-| GET    | /logs/recent     | Get recent logs        | Yes (Admin)   |
-| GET    | /logs/stats      | Log statistics         | Yes (Admin)   |
-| GET    | /logs/failed-logins | Failed login attempts | Yes (Admin)   |
-
-**Logs Filters:**
-- `action` - Filter by action type (USER_LOGIN, CREATE_TRANSACTION, etc.)
-- `level` - Filter by level: INFO, WARNING, ERROR
-- `start_date`, `end_date` - Date range
-- `request_id` - Filter by request ID
-- `entity_type`, `entity_id` - Filter by entity
-- `sort_order` - -1 for desc, 1 for asc (default: -1)
-- `limit`, `offset` - Pagination
-
----
-
-## Database Design
-
-### SQL Server Tables
-
-#### Users
-
-| Column        | Type     | Constraints                     |
-|---------------|----------|----------------------------------|
-| id            | Integer  | PK                               |
-| name          | String   | NOT NULL                         |
-| email         | String   | UNIQUE, NOT NULL                 |
-| password_hash | String   | NOT NULL                         |
-| status        | String   | Default: 'active'                |
-| role          | String   | Default: 'user'                  |
-| created_at    | DateTime | Default: now                     |
-
-#### Categories
-
-| Column | Type   | Constraints                  |
-|--------|--------|-------------------------------|
-| id     | Integer| PK                            |
-| name   | String | NOT NULL                      |
-| type   | String | "income" or "expense"         |
-
-#### Transactions
-
-| Column        | Type      | Constraints                    |
-|---------------|-----------|--------------------------------|
-| id            | Integer   | PK                             |
-| user_id       | Integer   | FK → users.id                  |
-| category_id   | Integer   | FK → categories.id             |
-| amount        | Float     | > 0                            |
-| description   | String    | Optional                       |
-| date          | DateTime  | NOT NULL                       |
-| created_by    | Integer   | FK → users.id                  |
-| modified_by   | Integer   | FK → users.id (nullable)       |
-| modified_at   | DateTime  |                                |
-| created_at    | DateTime  | Default: now                   |
-| is_deleted    | Boolean   | Default: False                 |
-
-**Indexes**: user_id, category_id, date, (user_id + date)
-
----
-
-### MongoDB Collection
-
-#### logs
-
-| Field     | Type    | Description              |
-|-----------|---------|-------------------------|
-| action    | String  | Action type             |
-| user_id   | Integer | Associated user         |
-| payload   | Object  | Action data             |
-| timestamp | DateTime| When action occurred    |
-
----
-
-## Setup Instructions
-
-### 1. Clone Repository
-
-```bash
-git clone <your-repo-url>
-cd finance_tracker
-```
-
-### 2. Create Virtual Environment
-
-```bash
-python -m venv venv
-source venv/bin/activate
-```
-
-### 3. Install Dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-### 4. Setup Environment Variables
-
-Copy `.env.example` to `.env`:
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env` with your values:
-
-```env
-DB_SERVER=127.0.0.1
-DB_PORT=1433
-DB_NAME=finance_db
-DB_USER=sa
-DB_PASSWORD=StrongPass123
-
-MONGO_URI=mongodb://localhost:27017
-MONGO_DB=finance_logs
-
-JWT_SECRET=your-super-secret-jwt-key-change-in-production
-
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your_email@gmail.com
-SMTP_PASSWORD=your_app_password
-FROM_EMAIL=noreply@yourdomain.com
-```
-
-### 5. Run Docker Containers
+### 1. Start infrastructure
 
 ```bash
 docker compose up -d
 ```
 
-### 6. Wait for SQL Server to Start
+This starts:
+
+- SQL Server on `1433`
+- MongoDB on `27017`
+
+### 2. Install dependencies
 
 ```bash
-docker logs -f sqlserver
+pip install -r requirements.txt
 ```
 
-Wait until you see: `SQL Server is now ready for client connections`
-
-### 7. Run Application
+### 3. Optional: reseed demo data
 
 ```bash
-uvicorn app.main:app --reload
+make seed-demo
 ```
 
-### 8. Open Swagger UI
+Use this when you want a fresh demo state with sample users, admin data, transactions, budgets, and logs.
 
-```
-http://127.0.0.1:8000/docs
+### 4. Run the app
+
+Recommended:
+
+```bash
+make dev
 ```
 
----
+Equivalent direct command:
+
+```bash
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+Then open:
+
+- [http://127.0.0.1:8000](http://127.0.0.1:8000) for the landing page
+- [http://127.0.0.1:8000/login.html](http://127.0.0.1:8000/login.html) for login
+- [http://127.0.0.1:8000/support.html](http://127.0.0.1:8000/support.html) for the support page
+
+## Notes About `make dev`
+
+The current `Makefile` includes a working `make dev` flow that:
+
+- installs dependencies
+- runs the FastAPI server with reload
+
+Use `make seed-demo` when you want to wipe and reseed local demo data explicitly.
+
+Other available commands:
+
+```bash
+make test
+make seed-demo
+make share
+```
+
+## Local Testing Flow
+
+For a normal local test session, use:
+
+```bash
+docker compose up -d
+make seed-demo
+make dev
+```
+
+If you do not want to reseed data, skip `make seed-demo`.
+
+## Troubleshooting
+
+### Port 8000 already in use
+
+If `make dev` fails with:
+
+```text
+ERROR: [Errno 48] Address already in use
+```
+
+check what is listening on port `8000`:
+
+```bash
+lsof -nP -iTCP:8000 -sTCP:LISTEN
+```
+
+If you want to stop that process, run:
+
+```bash
+kill <PID>
+```
+
+Then start Finly again:
+
+```bash
+make dev
+```
+
+If you want to keep the existing process and run Finly on another port instead:
+
+```bash
+uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+```
+
+Then open:
+
+- [http://127.0.0.1:8001](http://127.0.0.1:8001)
+
+## Sharing With Ngrok
+
+Once the app is running on port `8000`, you can expose it publicly:
+
+```bash
+make share
+```
+
+That runs:
+
+```bash
+ngrok http 8000
+```
+
+Because the frontend is served by the same FastAPI app, a single ngrok URL is enough for both UI and API.
+
+## Main Frontend Pages
+
+### Public
+
+- `Project/index.html` -> landing page
+- `Project/login.html` -> login
+- `Project/signup.html` -> signup
+- `Project/forgot-password.html` -> request reset code
+- `Project/reset-password.html` -> reset password with code
+- `Project/support.html` -> support and customer-help page
+
+### User workspace
+
+- `Project/app.html`
+- `Project/transactions.html`
+- `Project/reports.html`
+- `Project/budgets.html`
+- `Project/logs.html`
+- `Project/profile.html`
+
+### Admin workspace
+
+- `Project/admin.html`
+- `Project/admin-users.html`
+- `Project/admin-transactions.html`
+- `Project/admin-logs.html`
+- `Project/categories.html`
+- `Project/admin-profile.html`
+
+## Main API Areas
+
+### Auth
+
+- signup
+- login
+- change password
+- forgot password
+- reset password
+
+Auth behavior notes:
+
+- login accepts email-based sign-in only
+- emails are normalized to lowercase and trimmed before lookup/storage
+- signup, change-password, and reset-password require stronger passwords
+- password reset requests use cooldowns and throttling
+- reset codes are emailed through SMTP first
+- Gmail SMTP works with a Gmail account plus app password
+- Brevo remains available as a fallback if SMTP is unavailable
+
+### Users
+
+- current user profile
+- update profile
+- self-service profile page
+- delete account
+
+### Transactions
+
+- list, create, update, delete
+- soft delete / archive
+- hard delete
+- filtering
+- sorting
+- CSV export
+
+### Analytics
+
+- user summaries
+- monthly summaries
+- category summaries
+- dashboard insights
+- admin system analytics
+
+### Budgets
+
+- create budget
+- list budgets
+- budget summary
+- budget progress
+- update and delete budget
+
+### Logs
+
+- personal activity logs
+- admin operational logs
+
+## Current UX Flow
+
+The app is designed so first-time visitors do not land directly on login anymore.
+
+Recommended flow:
+
+1. Open the landing page
+2. Use the support page if the person is new or needs guidance
+3. Go to login or signup
+4. If needed, use forgot-password and then reset-password
+5. Enter the user or admin workspace based on role
+
+## Developer Notes
+
+- The frontend is static and lives in `Project/`
+- The backend serves that frontend from `app/main.py`
+- Dark mode, shared shell behavior, charts, page-help tooltips, and common utilities are centralized in:
+  - `Project/styles.css`
+  - `Project/js/core/utils.js`
+  - `Project/js/layout/sidebar.js`
+  - `Project/js/layout/header-actions.js`
+  - `Project/js/visuals/charts.js`
 
 ## Testing
 
-Run tests with:
+Run:
 
 ```bash
-pytest test_api.py -v
+make test
 ```
 
----
+If tests have been removed or are in flux in your local worktree, use targeted manual smoke testing on:
 
-## Important Notes
+- landing
+- support
+- login/signup
+- forgot-password/reset-password
+- user dashboard
+- transactions
+- reports
+- budgets
+- admin dashboard
+- admin analytics
 
-- All credentials are stored in environment variables (never hardcoded)
-- MongoDB logging is failure-safe (won't crash API on failure)
-- ODBC Driver 18 requires: `Encrypt=no` and `TrustServerCertificate=yes`
-- JWT tokens expire after configurable time
-- Users can only access their own data (except admins)
-- Rate limiting: 60 requests per minute (global), 5 login attempts per 15 minutes
-- Forgot password: 6-digit code, expires in 15 minutes, max 5 attempts
+## Summary
 
----
+Finly is now a combined frontend + API app with:
 
-## Project Status
-
-| Feature                  | Status |
-|--------------------------|--------|
-| Authentication           | ✅ Complete |
-| Forgot/Reset Password    | ✅ Complete |
-| Profile Management       | ✅ Complete |
-| Transactions             | ✅ Complete |
-| Categories               | ✅ Complete |
-| Analytics                | ✅ Complete |
-| Admin Features           | ✅ Complete |
-| Security (Auth, Rate Limit, Sanitization) | ✅ Complete |
-| Error Handling           | ✅ Complete |
-| Documentation            | ✅ Complete |
-
----
-
-## Author
-
-Nikhil Srikar Mangalampalli
-
----
-
-## API Improvements & Testing (New)
-
-- Centralized error payloads
-- Role-based access control (RBAC) enforced at admin router level
-- Consistent error payload format: code, message, detail, timestamp
-- Frontend serving endpoints removed from API; API is backend-only
-- New tests added: tests/test_api.py for login, user/me, admin RBAC
-- RBAC: admin-only endpoints protected; non-admin access returns 403
-- README updated with testing guidance and how to interpret error payloads
-
-### How to test RBAC & errors
-- Admin login: admin@financetracker.com / admin123
-- User login: john@example.com / john123
-- Use /api/admin/dashboard to verify admin access (admin token should succeed, user should fail)
-- Use /api/users/me with valid/invalid tokens to verify 200 vs 401/403
-
-### Error payload format (example)
-{
-  "success": false,
-  "error": "Unauthorized",
-  "error_code": "ERR_UNAUTHORIZED",
-  "path": "/api/users/me",
-  "timestamp": "2026-..."
-}
-
----
-## Local Development (No Hosting by Default)
-
-- This project is designed to run locally with the API backend. Frontend hosting is not included by default. You can host the frontend separately if you want to test the UI with the API locally.
-- Prerequisites:
-  - Python 3.8+ (tested with 3.14 environment)
-  - Virtual environment activated
- - Docker (optional, for DB services) if you want to run the database locally
-
-- Typical workflow (one-time or on each dev session):
-  1) Install dependencies
-    ```bash
-    pip install -r requirements.txt
-    ```
-  2) Seed test data
-    ```bash
-    python seed_data.py
-    ```
-  3) Run the API locally
-    ```bash
-    uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-    ```
-  4) Run tests
-    ```bash
-    pytest test_api.py -v
-    pytest tests/test_api_v1.py -v
-    ```
-  5) Optional: Use the provided Makefile for a simple dev workflow
-    - make dev  # install deps, seed data, run server
-    - make test # run tests
-
-- Note: If you plan to deploy later, it should be a separate, explicit step; this patch keeps hosting/deploy out of the default dev workflow.
-
-- How to test locally:
-  - Admin login: admin@financetracker.com / admin123
-  - User login: john@example.com / john123
-  - Access API docs: http://127.0.0.1:8000/docs
-
----
-## Versioning Strategy
-
-- The API already includes a v1 surface under /api/v1. All existing endpoints are available under /api/v1, and /api acts as an alias or redirect to /api/v1 to ease migration.
-- Future changes should be introduced through /api/v1 first; the /api surface can be kept as a stable alias for compatibility.
-
----
-## Examples (Error Payloads)
-
-- 400 Bad Request
-  {
-    "success": False,
-    "error": "Bad Request",
-    "error_code": "ERR_BAD_REQUEST",
-    "path": "/api/transactions",
-    "timestamp": "...",
-    "detail": "Invalid input: amount must be positive"
-  }
-- 401 Unauthorized
-  {
-    "success": False,
-    "error": "Unauthorized",
-    "error_code": "ERR_UNAUTHORIZED",
-    "path": "/api/users/me",
-    "timestamp": "..."
-  }
-- 403 Forbidden
-  {
-    "success": False,
-    "error": "Forbidden",
-    "error_code": "ERR_FORBIDDEN",
-    "path": "/api/admin/dashboard",
-    "timestamp": "..."
-  }
-- 500 Internal Server Error
-  {
-    "success": False,
-    "error": "Internal server error",
-    "error_code": "ERR_INTERNAL",
-    "path": "/docs",
-    "timestamp": "..."
-  }
-
----
-## Quickstart (local)
-
-- Start server: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-- Seed data: python seed_data.py
-- Run tests: pytest -q
-- Open API docs: http://127.0.0.1:8000/docs
-
-
----
-## Quickstart (Local Development)
-
-- Run API locally (no hosting by default):
-  - make dev
-- Run tests:
-  - pytest -q
-- API versioning:
-  - Use /api/v1/* endpoints (future-proof); /api remains as alias redirecting to /api/v1
-- Error payloads:
-  - All endpoints return a consistent JSON error payload with code, error, detail, path, and timestamp
+- a public landing experience
+- a dedicated support page for new users and admins
+- separate login and signup pages
+- a two-step password recovery flow
+- Gmail/SMTP-friendly password reset email delivery with Brevo fallback
+- user budgeting/reporting workflows
+- admin operations and system analytics
+- one-port sharing through ngrok

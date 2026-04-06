@@ -67,7 +67,7 @@ def enrich_log(log: dict) -> dict:
 @router.get("")
 def get_user_logs(
     current_user: User = Depends(get_current_user),
-    admin_user: User = Depends(require_admin),
+    user_id: int = Query(default=None, description="Filter by user ID"),
     action: str = Query(default=None, description="Filter by action type"),
     level: str = Query(default=None, description="Filter by level: INFO, WARNING, ERROR"),
     start_date: datetime = Query(default=None, description="Start date"),
@@ -80,8 +80,14 @@ def get_user_logs(
     limit: int = Query(default=20, ge=1, le=100, description="Number of records"),
     offset: int = Query(default=0, ge=0, description="Offset for pagination")
 ):
-    query = {"user_id": current_user.id}
+    query = {}
     filters = {}
+
+    if current_user.role != "admin":
+        query["user_id"] = current_user.id
+    elif user_id:
+        query["user_id"] = user_id
+        filters["user_id"] = user_id
     
     mongo_sort = -1 if sort_order == "desc" else 1
     
@@ -156,10 +162,6 @@ def get_recent_logs(
     if level:
         query["level"] = level.upper()
         filters["level"] = level
-    
-    if user_id:
-        query["user_id"] = user_id
-        filters["user_id"] = user_id
     
     if start_date:
         query["timestamp"] = {"$gte": start_date}

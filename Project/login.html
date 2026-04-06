@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Finly | Login</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            primary: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              200: '#bfdbfe',
+              300: '#93c5fd',
+              400: '#60a5fa',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+              800: '#1e40af',
+              900: '#1e3a8a',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=20260402-landing">
+</head>
+
+<body class="bg-[#FBFBFD] dark:bg-[#000000] min-h-screen flex items-center justify-center p-6 transition-colors duration-300">
+  <div class="auth-panel">
+    <div class="text-center mb-8">
+      <div class="auth-brand-badge mb-6">Finly</div>
+      <h2 class="text-2xl font-black text-gray-900 dark:text-white tracking-tight">Welcome Back</h2>
+      <p class="text-gray-500 dark:text-gray-400 text-sm font-medium mt-1 uppercase tracking-widest">Login to your portal</p>
+    </div>
+
+    <div id="noticeBox" class="hidden bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 p-4 rounded-lg mb-6 text-xs font-bold uppercase tracking-wide border border-green-100 dark:border-green-900/40"></div>
+    <div id="errorBox" class="hidden bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-4 rounded-lg mb-6 text-xs font-bold uppercase tracking-wide border border-red-100 dark:border-red-900/50"></div>
+
+    <form id="loginForm" class="space-y-6">
+      <div>
+        <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 block">Email Address</label>
+        <input
+          type="email"
+          id="email"
+          name="email"
+          required
+          class="apple-input"
+          placeholder="e.g. name@company.com"
+        />
+      </div>
+
+      <div>
+        <div class="flex justify-between items-center mb-1.5">
+          <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Password</label>
+          <a href="forgot-password.html" class="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest hover:underline">Forgot password?</a>
+        </div>
+        <input
+          type="password"
+          id="password"
+          name="password"
+          required
+          class="apple-input"
+          placeholder="••••••••"
+        />
+      </div>
+
+      <button
+        type="submit"
+        id="loginBtn"
+        class="btn btn-primary auth-action-btn w-full justify-center uppercase"
+      >
+        Sign In
+      </button>
+    </form>
+
+    <p class="text-xs text-gray-500 dark:text-gray-400 text-center mt-10 font-medium">
+      New to Finly?
+      <a href="signup.html" class="text-blue-600 dark:text-blue-400 font-black hover:underline uppercase tracking-widest ml-1">Create Account</a>
+    </p>
+
+    <p class="text-[11px] text-gray-400 dark:text-gray-500 text-center mt-4 font-medium">
+      Need help signing in?
+      <a href="support.html" class="text-gray-700 dark:text-gray-200 font-semibold hover:underline ml-1">Open support center</a>
+    </p>
+
+    <p class="text-[11px] text-gray-400 dark:text-gray-500 text-center mt-3 font-medium">
+      Want the product overview first?
+      <a href="index.html" class="text-gray-700 dark:text-gray-200 font-semibold hover:underline ml-1">Back to landing page</a>
+    </p>
+  </div>
+
+  <script src="js/core/utils.js?v=20260403-auth-security"></script>
+  <script>
+    const existingToken = localStorage.getItem("token");
+    if (existingToken) {
+      FinanceUtils.getCurrentUser()
+        .then((user) => {
+          if (user?.role === 'admin') window.location.href = 'admin.html';
+          else if (user) window.location.href = 'app.html';
+        })
+        .catch(() => {});
+    }
+
+    const form = document.getElementById("loginForm");
+    const noticeBox = document.getElementById("noticeBox");
+    const errorBox = document.getElementById("errorBox");
+    const loginBtn = document.getElementById("loginBtn");
+    const authNotice = sessionStorage.getItem("finly_auth_notice");
+
+    if (authNotice) {
+      noticeBox.innerText = authNotice;
+      noticeBox.classList.remove("hidden");
+      sessionStorage.removeItem("finly_auth_notice");
+    }
+
+    const validationRules = {
+      email: [
+        { required: true, message: 'Email is required' },
+        { email: true, message: 'Please enter a valid email address' }
+      ],
+      password: [
+        { required: true, message: 'Password is required' }
+      ]
+    };
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      FinanceUtils.clearFormErrors(form);
+
+      const validation = FinanceUtils.validateForm(form, validationRules);
+      if (!validation.isValid) {
+        FinanceUtils.showFormErrors(form, validation.errors);
+        return;
+      }
+
+      loginBtn.innerText = "Logging in...";
+      loginBtn.disabled = true;
+      errorBox.classList.add("hidden");
+      noticeBox.classList.add("hidden");
+
+      const email = FinanceUtils.normalizeEmail(document.getElementById("email").value);
+      document.getElementById("email").value = email;
+      const password = document.getElementById("password").value;
+
+      try {
+        const data = await FinanceUtils.fetchPublic('/auth/login', {
+          method: "POST",
+          body: JSON.stringify({ email, password })
+        });
+
+        localStorage.setItem("token", data.data.access_token);
+        const user = data.data?.user || null;
+        if (user?.role) {
+          localStorage.setItem("finance_user_role", user.role);
+        }
+        FinanceUtils.showToast('Login successful!', 'success');
+
+        setTimeout(() => {
+          window.location.href = user?.role === 'admin' ? "admin.html" : "app.html";
+        }, 350);
+      } catch (err) {
+        FinanceUtils.showToast(err.message, 'error');
+        errorBox.innerText = err.message;
+        errorBox.classList.remove("hidden");
+      } finally {
+        loginBtn.innerText = "Sign In";
+        loginBtn.disabled = false;
+      }
+    });
+
+    form.querySelectorAll('input').forEach(input => {
+      input.addEventListener('blur', () => {
+        if (input.type === 'email') {
+          input.value = FinanceUtils.normalizeEmail(input.value);
+        }
+        const fieldName = input.name;
+        if (validationRules[fieldName]) {
+          const validation = FinanceUtils.validateForm(form, { [fieldName]: validationRules[fieldName] });
+          if (!validation.isValid) {
+            FinanceUtils.showFormErrors(form, validation.errors);
+          } else {
+            const errorDiv = input.parentNode.querySelector('.error-message');
+            if (errorDiv) errorDiv.remove();
+            input.classList.remove('border-red-500');
+          }
+        }
+      });
+    });
+  </script>
+</body>
+</html>

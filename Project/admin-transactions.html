@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin Transactions | Finance Tracker</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            primary: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              200: '#bfdbfe',
+              300: '#93c5fd',
+              400: '#60a5fa',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+              800: '#1e40af',
+              900: '#1e3a8a',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <!-- Utility Script -->
+  <script src="js/core/utils.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body class="bg-[#FBFBFD] dark:bg-black admin-theme transition-colors duration-300">
+
+<!-- Sidebar -->
+<div class="sidebar" id="sidebar">
+  <div class="sidebar-logo">Finly Admin</div>
+  <nav class="sidebar-nav" data-sidebar="admin">
+    <!-- Links by sidebar.js -->
+  </nav>
+  
+  <div class="mt-auto pt-6 border-t border-gray-200 dark:border-white/10">
+    <button onclick="FinanceUtils.logout()" class="sidebar-item w-full border-none cursor-pointer group">
+      <svg class="w-5 h-5 mr-3 text-gray-400 group-hover:text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+      </svg>
+      <span class="group-hover:text-red-500">Log Out</span>
+    </button>
+  </div>
+</div>
+
+<div class="main-content">
+  <header class="top-nav">
+    <div>
+      <div class="page-title-row">
+        <h1 class="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">System Transactions</h1>
+        <div class="page-help admin-help" tabindex="0">
+          <button type="button" class="page-help-button" aria-label="What this page is for">i</button>
+          <div class="page-help-tooltip">
+            <strong>System Transactions</strong>
+            <p>Audit platform-wide transactions, investigate by user or category, and use bulk actions to archive, restore, or permanently delete records.</p>
+          </div>
+        </div>
+      </div>
+      <p class="text-sm text-gray-500 dark:text-gray-400 font-medium mt-1 uppercase tracking-widest">Global Cashflow Audit</p>
+    </div>
+    <div class="header-cluster">
+      <div data-header-tools="default"></div>
+      <span class="context-chip context-chip-admin">System Admin</span>
+    </div>
+  </header>
+
+  <main class="mt-8">
+    <!-- Filters Bar -->
+    <div class="apple-card surface-accent-orange filter-surface mb-10">
+      <div class="filter-caption">
+        <strong>Audit system transactions</strong>
+        <span>User, category, amount, sort</span>
+      </div>
+      <div class="filter-grid filter-grid-dense filter-grid-admin-transactions">
+        <div class="filter-field filter-field-wide">
+          <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 ml-1">Identity Search</label>
+          <div class="filter-search">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            <input id="userFilter" placeholder="User email or description..." class="apple-input text-sm bg-white dark:bg-gray-800 border border-gray-100 dark:border-white/5">
+          </div>
+        </div>
+        
+        <div class="filter-field">
+          <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 ml-1">Type</label>
+          <select id="typeFilter" class="apple-input text-sm font-bold cursor-pointer bg-white dark:bg-gray-800 border border-gray-100 dark:border-white/5">
+            <option value="">All Types</option>
+            <option value="income">Income</option>
+            <option value="expense">Expense</option>
+          </select>
+        </div>
+
+        <div class="filter-field">
+          <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 ml-1">Category</label>
+          <select id="categoryFilter" class="apple-input text-sm font-bold cursor-pointer bg-white dark:bg-gray-800 border border-gray-100 dark:border-white/5">
+            <option value="">All Categories</option>
+          </select>
+        </div>
+
+        <div class="filter-field">
+          <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 ml-1">Sort</label>
+          <select id="sortTransactions" class="apple-input text-sm font-bold cursor-pointer bg-white dark:bg-gray-800 border border-gray-100 dark:border-white/5">
+            <option value="date_desc">Newest first</option>
+            <option value="date_asc">Oldest first</option>
+            <option value="amount_desc">Amount high to low</option>
+            <option value="amount_asc">Amount low to high</option>
+          </select>
+        </div>
+
+        <div class="filter-field filter-field-amount">
+          <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 ml-1">Amount Range</label>
+          <div class="filter-range">
+            <input id="minAmount" type="number" placeholder="Min amount" class="apple-input text-sm bg-white dark:bg-gray-800 border border-gray-100 dark:border-white/5">
+            <input id="maxAmount" type="number" placeholder="Max amount" class="apple-input text-sm bg-white dark:bg-gray-800 border border-gray-100 dark:border-white/5">
+          </div>
+        </div>
+
+        <div class="filter-actions filter-actions-compact">
+          <button onclick="applyFilters()" class="btn btn-primary px-8">Apply</button>
+          <button onclick="resetFilters()" class="btn btn-secondary px-6">Reset</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="activeTxnFilters" class="filter-chip-row hidden"></div>
+    <div id="adminBulkActionsBar" class="hidden items-center justify-between gap-4 mb-6 px-5 py-4 rounded-[20px] border border-blue-100 dark:border-blue-500/20 bg-blue-50/70 dark:bg-blue-500/10">
+      <p id="adminBulkSelectionLabel" class="text-xs font-bold text-blue-700 dark:text-blue-200 uppercase tracking-widest">0 selected</p>
+      <div class="flex flex-wrap gap-2">
+        <button onclick="bulkArchiveSelected()" class="btn btn-secondary px-4 py-2 text-xs">Archive Selected</button>
+        <button onclick="bulkRestoreSelected()" class="btn btn-secondary px-4 py-2 text-xs">Restore Selected</button>
+        <button onclick="bulkDeleteSelected()" class="btn btn-secondary px-4 py-2 text-xs text-red-500">Delete Forever</button>
+        <button onclick="clearSelection()" class="btn btn-secondary px-4 py-2 text-xs">Clear</button>
+      </div>
+    </div>
+
+    <!-- Main Table -->
+    <div class="apple-card p-0 overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-left table-head">
+              <th class="p-6 w-12 text-center">
+                <input id="selectAllAdminTransactions" type="checkbox" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500" aria-label="Select all admin transactions">
+              </th>
+              <th class="p-6 font-bold text-gray-400 uppercase tracking-widest text-[10px]">Timestamp</th>
+              <th class="p-6 font-bold text-gray-400 uppercase tracking-widest text-[10px]">Origin</th>
+              <th class="p-6 font-bold text-gray-400 uppercase tracking-widest text-[10px]">Classification</th>
+              <th class="p-6 font-bold text-gray-400 uppercase tracking-widest text-[10px]">Status</th>
+              <th class="p-6 text-right font-bold text-gray-400 uppercase tracking-widest text-[10px]">Value</th>
+              <th class="p-6 text-right font-bold text-gray-400 uppercase tracking-widest text-[10px]">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="txnTable" class="divide-y divide-gray-100 dark:divide-white/5"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Pagination -->
+    <div class="flex items-center justify-between mt-8 px-2">
+      <p class="text-xs font-bold text-gray-400 uppercase tracking-widest" id="txnPageInfo">Page 1 of 1</p>
+      <div class="flex items-center gap-6">
+        <div class="flex items-center gap-3">
+          <span class="text-[10px] font-bold text-gray-400 uppercase">Rows per page</span>
+          <select id="txnPageSize" class="apple-input text-sm w-28 font-bold bg-white dark:bg-gray-800 border border-gray-100 dark:border-white/5">
+            <option value="10">10</option>
+            <option value="20" selected>20</option>
+            <option value="50">50</option>
+          </select>
+        </div>
+        <div class="flex gap-2">
+          <button id="txnPrevBtn" onclick="goToTxnPage('prev')" class="btn btn-secondary px-6 py-2 text-xs" disabled aria-disabled="true">Previous</button>
+          <button id="txnNextBtn" onclick="goToTxnPage('next')" class="btn btn-secondary px-6 py-2 text-xs" disabled aria-disabled="true">Next</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- 🔷 Modal -->
+<div id="txnModal" class="modal-overlay" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="modal dark:bg-[#1D1D1F]">
+
+    <div class="modal-body">
+
+    <h3 class="mb-4 font-bold text-gray-900 dark:text-white">Transaction Details</h3>
+
+    <div id="txnDetails" class="text-sm space-y-3 text-gray-600 dark:text-gray-400"></div>
+
+    <div class="flex justify-end mt-8">
+      <button onclick="closeTxnModal()" class="btn btn-secondary px-8">Close</button>
+    </div>
+
+    </div>
+
+  </div>
+</div>
+
+<script src="js/layout/sidebar.js"></script>
+<script src="js/layout/header-actions.js"></script>
+<script>
+const token = localStorage.getItem("token");
+if (!token) {
+  window.location.href = "login.html";
+}
+
+/* 🔷 CHECK ADMIN */
+async function checkAdmin() {
+  try {
+    const res = await FinanceUtils.fetchWithAuth('/users/me');
+    if (!res.success || res.data.role !== 'admin') {
+      FinanceUtils.showToast("Unauthorized access. Redirecting...", "warning");
+      window.location.href = "app.html";
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('Admin check failed:', err);
+    if (err.status === 401) {
+      window.location.href = "login.html";
+      return false;
+    }
+    FinanceUtils.showToast('Temporary server limit reached. Please retry in a moment.', 'warning');
+    return false;
+  }
+}
+
+/* 🔷 STATE */
+let transactions = [];
+let categories = [];
+let currentFilterState = { sort_by: 'date', sort_order: 'desc' };
+let pendingTxnActions = {};
+let txnPagination = {
+  limit: 20,
+  offset: 0,
+  page: 1,
+  total_pages: 1,
+  has_next: false,
+  has_prev: false,
+  total: 0
+};
+let selectedTxnIds = new Set();
+
+function patchTransactionState(id, updates = {}) {
+  transactions = transactions.map((item) => item.id === id ? { ...item, ...updates } : item);
+}
+
+function clearPendingTxnAction(id) {
+  delete pendingTxnActions[id];
+  renderTable(transactions);
+}
+
+function syncSelectionWithRows() {
+  const visibleIds = new Set(transactions.map((item) => item.id));
+  selectedTxnIds.forEach((id) => {
+    if (!visibleIds.has(id)) selectedTxnIds.delete(id);
+  });
+}
+
+/* 🔷 LOAD CATEGORIES */
+async function loadCategories() {
+  try {
+    const res = await FinanceUtils.fetchWithAuth('/categories?include_stats=false');
+    if (!res.success) throw new Error(res.error || 'Failed to load categories');
+    categories = res.data;
+    const select = document.getElementById('categoryFilter');
+    select.innerHTML = '<option value="">All Categories</option>';
+    categories.forEach((category) => {
+      select.innerHTML += `<option value="${category.id}">${category.name}</option>`;
+    });
+  } catch (err) {
+    console.error('Load categories error:', err);
+  }
+}
+
+/* 🔷 LOAD TRANSACTIONS */
+async function loadTransactions(params = {}) {
+  const table = document.getElementById("txnTable");
+  table.innerHTML = FinanceUtils.createSkeleton(5);
+  try {
+    const queryParams = new URLSearchParams({
+      include_deleted: 'true',
+      ...params,
+      limit: txnPagination.limit,
+      offset: txnPagination.offset
+    });
+    const res = await FinanceUtils.fetchWithAuth(`/transactions?${queryParams.toString()}`);
+    if (!res.success) throw new Error(res.error || 'Failed to load transactions');
+
+    const enrichedTransactions = res.data.map((t) => {
+      const cat = categories.find(c => c.id === t.category_id);
+      return {
+        ...t,
+        category_name: t.category_name || (cat ? cat.name : 'Unknown'),
+        type: t.type || (cat ? cat.type : 'unknown'),
+        user_email: t.user_email || `User ${t.user_id}`,
+        user_name: t.user_name || '',
+        user_id: t.user_id
+      };
+    });
+    transactions = enrichedTransactions;
+    syncSelectionWithRows();
+    renderTable(transactions);
+    updateTxnPagination(res.meta || {});
+  } catch (err) {
+    console.error('Load transactions error:', err);
+    FinanceUtils.showToast('Failed to load transactions', 'error');
+    table.innerHTML = FinanceUtils.createTableMessageRow(7, {
+      title: 'Transactions unavailable',
+      message: 'We could not load system transactions right now.',
+      tone: 'error'
+    });
+  }
+}
+
+function updateTxnPagination(meta) {
+  txnPagination = {
+    ...txnPagination,
+    ...meta,
+    limit: meta.limit ?? txnPagination.limit,
+    offset: meta.offset ?? txnPagination.offset
+  };
+
+  const pageInfo = document.getElementById('txnPageInfo');
+  if (pageInfo) {
+    pageInfo.textContent = `Page ${txnPagination.page || 1} of ${txnPagination.total_pages || 1} • ${txnPagination.total || 0} transactions`;
+  }
+  const prevBtn = document.getElementById('txnPrevBtn');
+  const nextBtn = document.getElementById('txnNextBtn');
+  if (prevBtn) {
+    prevBtn.disabled = !txnPagination.has_prev;
+    prevBtn.setAttribute('aria-disabled', String(!txnPagination.has_prev));
+  }
+  if (nextBtn) {
+    nextBtn.disabled = !txnPagination.has_next;
+    nextBtn.setAttribute('aria-disabled', String(!txnPagination.has_next));
+  }
+}
+
+function goToTxnPage(direction) {
+  if (direction === 'prev' && txnPagination.has_prev) {
+    txnPagination.offset = Math.max(0, txnPagination.offset - txnPagination.limit);
+    loadTransactions(getServerFilterParamsFromState());
+  }
+  if (direction === 'next' && txnPagination.has_next) {
+    txnPagination.offset = txnPagination.offset + txnPagination.limit;
+    loadTransactions(getServerFilterParamsFromState());
+  }
+}
+
+/* 🔷 RENDER TABLE */
+function renderTable(data = transactions) {
+  const table = document.getElementById("txnTable");
+  table.innerHTML = "";
+  if (data.length === 0) {
+    table.innerHTML = FinanceUtils.createTableMessageRow(7, {
+      title: 'No transactions found',
+      message: 'Adjust your audit filters to broaden the results.',
+      compact: true
+    });
+    updateSelectAllControl([]);
+    renderBulkActionsBar();
+    return;
+  }
+
+  data.forEach((t) => {
+    const isIncome = t.amount > 0;
+    const pendingState = pendingTxnActions[t.id] || '';
+    const isSelected = selectedTxnIds.has(t.id);
+    table.innerHTML += `
+      <tr class="list-row group ${pendingState ? 'opacity-70' : ''}">
+        <td class="p-6 text-center">
+          <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleTransactionSelection(${t.id}, this.checked)" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500" aria-label="Select transaction ${t.id}">
+        </td>
+        <td class="p-6 text-[11px] font-bold text-gray-400 uppercase tracking-tight">${t.date ? FinanceUtils.formatDate(t.date) : ''}</td>
+        <td class="p-6">
+          <p class="font-bold text-gray-900 dark:text-white">${t.user_email || 'System'}</p>
+          <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5 truncate max-w-[200px]">${t.description || '-'}</p>
+        </td>
+        <td class="p-6">
+          <span class="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest bg-gray-100 dark:bg-white/5 px-3 py-1 rounded-full border border-gray-200 dark:border-white/10">${t.category_name}</span>
+        </td>
+        <td class="p-6">
+          <span class="badge ${t.is_deleted ? 'badge-danger' : 'badge-success'} text-[10px] uppercase font-black tracking-widest px-3">
+            ${t.is_deleted ? 'Archived' : 'Active'}
+          </span>
+        </td>
+        <td class="p-6 text-right font-black text-lg" style="color: ${isIncome ? 'var(--apple-green)' : 'var(--text-main)'};">
+          ${FinanceUtils.formatCurrency(Math.abs(t.amount))}
+        </td>
+        <td class="p-6 text-right">
+          <div class="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button onclick="viewTxn(${t.id})" class="btn btn-secondary px-4 py-1.5 text-[10px] uppercase font-bold tracking-widest" ${pendingState ? 'disabled' : ''}>View</button>
+            <button onclick="restoreTxn(${t.id})" class="btn btn-secondary text-blue-600 px-4 py-1.5 text-[10px] uppercase font-bold tracking-widest" ${(!t.is_deleted || pendingState) ? 'disabled' : ''}>${pendingState === 'restore' ? 'Restoring...' : 'Restore'}</button>
+            <button onclick="softDelete(${t.id})" class="btn btn-secondary text-amber-600 px-4 py-1.5 text-[10px] uppercase font-bold tracking-widest" ${(t.is_deleted || pendingState) ? 'disabled' : ''}>${pendingState === 'soft' ? 'Archiving...' : 'Archive'}</button>
+            <button onclick="hardDelete(${t.id})" class="btn btn-secondary text-red-500 px-4 py-1.5 text-[10px] uppercase font-bold tracking-widest" ${pendingState ? 'disabled' : ''}>${pendingState === 'hard' ? 'Deleting...' : 'Delete'}</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  });
+  updateSelectAllControl(data);
+  renderBulkActionsBar();
+}
+
+/* 🔷 FILTERS */
+function applyFilters() {
+  const type = document.getElementById("typeFilter").value;
+  const categoryId = document.getElementById("categoryFilter").value;
+  const min = document.getElementById("minAmount").value;
+  const max = document.getElementById("maxAmount").value;
+  const search = document.getElementById("userFilter").value.trim();
+  const [sortBy = 'date', sortOrder = 'desc'] = document.getElementById('sortTransactions').value.split('_');
+  currentFilterState = { sort_by: sortBy, sort_order: sortOrder };
+  if (type) currentFilterState.type = type;
+  if (categoryId) currentFilterState.category_id = categoryId;
+  if (min) currentFilterState.min_amount = min;
+  if (max) currentFilterState.max_amount = max;
+  if (search) currentFilterState.search = search;
+  txnPagination.offset = 0;
+  FinanceUtils.refreshFilterFieldStates();
+  renderActiveFilters();
+  loadTransactions(getServerFilterParamsFromState());
+}
+
+function getServerFilterParamsFromState() {
+  const params = {
+    sort_by: currentFilterState.sort_by || 'date',
+    sort_order: currentFilterState.sort_order || 'desc'
+  };
+  if (currentFilterState.search) params.search = currentFilterState.search;
+  if (currentFilterState.type) params.type = currentFilterState.type;
+  if (currentFilterState.category_id) params.category_id = currentFilterState.category_id;
+  if (currentFilterState.min_amount) params.min_amount = currentFilterState.min_amount;
+  if (currentFilterState.max_amount) params.max_amount = currentFilterState.max_amount;
+  return params;
+}
+
+function renderActiveFilters() {
+  const bar = document.getElementById('activeTxnFilters');
+  const chips = [];
+  if (currentFilterState.search) chips.push(`Search: ${currentFilterState.search}`);
+  if (currentFilterState.type) chips.push(`Type: ${currentFilterState.type}`);
+  if (currentFilterState.category_id) {
+    const category = categories.find((item) => String(item.id) === String(currentFilterState.category_id));
+    chips.push(`Category: ${category ? category.name : '?'}`);
+  }
+  if (currentFilterState.min_amount) chips.push(`Min: ${FinanceUtils.formatCurrency(Number(currentFilterState.min_amount))}`);
+  if (currentFilterState.max_amount) chips.push(`Max: ${FinanceUtils.formatCurrency(Number(currentFilterState.max_amount))}`);
+  if ((currentFilterState.sort_by || 'date') !== 'date' || (currentFilterState.sort_order || 'desc') !== 'desc') {
+    const sortMap = {
+      date_asc: 'Sort: Oldest first',
+      amount_desc: 'Sort: Amount high to low',
+      amount_asc: 'Sort: Amount low to high'
+    };
+    chips.push(sortMap[`${currentFilterState.sort_by}_${currentFilterState.sort_order}`] || 'Sort: Newest first');
+  }
+
+  if (chips.length === 0) {
+    bar.classList.add('hidden');
+    bar.innerHTML = '';
+    return;
+  }
+
+  bar.classList.remove('hidden');
+  bar.innerHTML = chips.map((label) => `<span class="filter-chip filter-chip-admin">${label}</span>`).join('');
+}
+
+function resetFilters() {
+  document.getElementById("userFilter").value = "";
+  document.getElementById("typeFilter").value = "";
+  document.getElementById("categoryFilter").value = "";
+  document.getElementById("minAmount").value = "";
+  document.getElementById("maxAmount").value = "";
+  document.getElementById("sortTransactions").value = "date_desc";
+  currentFilterState = { sort_by: 'date', sort_order: 'desc' };
+  txnPagination.offset = 0;
+  clearSelection();
+  FinanceUtils.refreshFilterFieldStates();
+  renderActiveFilters();
+  loadTransactions(getServerFilterParamsFromState());
+}
+
+/* 🔷 VIEW */
+async function viewTxn(id) {
+  try {
+    const res = await FinanceUtils.fetchWithAuth(`/transactions/${id}`);
+    if (!res.success) throw new Error(res.error || 'Failed to load transaction');
+    const t = res.data;
+    const cat = categories.find(c => c.id === t.category_id);
+    document.getElementById("txnDetails").innerHTML = `
+      <div class="grid grid-cols-2 gap-4">
+        <div><p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">User</p><p class="font-bold text-gray-900 dark:text-white">${t.user_email || `#${t.user_id}`}</p></div>
+        <div><p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Date</p><p class="font-bold text-gray-900 dark:text-white">${FinanceUtils.formatDate(t.date, 'long')}</p></div>
+        <div><p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Category</p><p class="font-bold text-gray-900 dark:text-white">${cat ? cat.name : 'Unknown'}</p></div>
+        <div><p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Status</p><p class="font-bold text-gray-900 dark:text-white">${t.is_deleted ? 'Archived' : 'Active'}</p></div>
+        <div class="col-span-2"><p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Description</p><p class="font-bold text-gray-900 dark:text-white">${t.description || '-'}</p></div>
+        <div class="col-span-2 pt-4 border-t border-gray-100 dark:border-white/5"><p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Amount</p><p class="text-3xl font-black text-gray-900 dark:text-white">${FinanceUtils.formatCurrency(Math.abs(t.amount))}</p></div>
+      </div>
+    `;
+    FinanceUtils.openModal('txnModal');
+  } catch (err) {
+    console.error('View transaction error:', err);
+    FinanceUtils.showToast(err.message, 'error');
+  }
+}
+
+function closeTxnModal() {
+  FinanceUtils.closeModal('txnModal');
+}
+
+document.getElementById('txnModal').addEventListener('click', function(e) {
+  if (e.target.id === 'txnModal') closeTxnModal();
+});
+
+/* 🔷 DELETE */
+async function softDelete(id) {
+  if (!confirm('Archive this transaction?')) return;
+  pendingTxnActions[id] = 'soft';
+  renderTable(transactions);
+  try {
+    const res = await FinanceUtils.fetchWithAuth(`/transactions/${id}?mode=soft`, { method: 'DELETE' });
+    if (!res.success) throw new Error(res.error || 'Failed to archive');
+    patchTransactionState(id, { is_deleted: true });
+    FinanceUtils.showToast('Transaction archived successfully', 'success');
+    clearPendingTxnAction(id);
+    await loadTransactions(getServerFilterParamsFromState());
+  } catch (err) {
+    console.error('Soft delete error:', err);
+    FinanceUtils.showToast(err.message, 'error');
+    clearPendingTxnAction(id);
+    return;
+  }
+}
+
+async function restoreTxn(id) {
+  pendingTxnActions[id] = 'restore';
+  renderTable(transactions);
+  try {
+    const res = await FinanceUtils.fetchWithAuth(`/transactions/${id}/restore`, { method: 'PUT' });
+    if (!res.success) throw new Error(res.error || 'Failed to restore');
+    patchTransactionState(id, { is_deleted: false });
+    FinanceUtils.showToast('Transaction restored successfully', 'success');
+    clearPendingTxnAction(id);
+    await loadTransactions(getServerFilterParamsFromState());
+  } catch (err) {
+    console.error('Restore transaction error:', err);
+    FinanceUtils.showToast(err.message, 'error');
+    clearPendingTxnAction(id);
+    return;
+  }
+}
+
+function toggleTransactionSelection(id, checked) {
+  if (checked) selectedTxnIds.add(id);
+  else selectedTxnIds.delete(id);
+  renderBulkActionsBar();
+  updateSelectAllControl(transactions);
+}
+
+function updateSelectAllControl(rows) {
+  const selectAll = document.getElementById('selectAllAdminTransactions');
+  if (!selectAll) return;
+  if (!rows.length) {
+    selectAll.checked = false;
+    selectAll.indeterminate = false;
+    return;
+  }
+  const selectedVisible = rows.filter((item) => selectedTxnIds.has(item.id)).length;
+  selectAll.checked = selectedVisible > 0 && selectedVisible === rows.length;
+  selectAll.indeterminate = selectedVisible > 0 && selectedVisible < rows.length;
+}
+
+function renderBulkActionsBar() {
+  const bar = document.getElementById('adminBulkActionsBar');
+  const label = document.getElementById('adminBulkSelectionLabel');
+  if (!bar || !label) return;
+  const count = selectedTxnIds.size;
+  label.textContent = `${count} selected`;
+  if (!count) {
+    bar.classList.add('hidden');
+    bar.classList.remove('flex');
+    return;
+  }
+  bar.classList.remove('hidden');
+  bar.classList.add('flex');
+}
+
+function clearSelection() {
+  selectedTxnIds.clear();
+  renderTable(transactions);
+}
+
+function toggleSelectAllTransactions(checked) {
+  transactions.forEach((item) => {
+    if (checked) selectedTxnIds.add(item.id);
+    else selectedTxnIds.delete(item.id);
+  });
+  renderTable(transactions);
+}
+
+async function runBulkAction(action) {
+  const ids = Array.from(selectedTxnIds);
+  if (!ids.length) {
+    FinanceUtils.showToast('Select at least one transaction', 'warning');
+    return;
+  }
+
+  const confirmMessage = action === 'restore'
+    ? 'Restore the selected archived transactions?'
+    : action === 'hard'
+      ? 'Permanently delete the selected transactions? This cannot be undone.'
+      : 'Archive the selected transactions?';
+  if (!confirm(confirmMessage)) return;
+
+  ids.forEach((id) => {
+    pendingTxnActions[id] = action;
+  });
+  renderTable(transactions);
+
+  try {
+    const endpoint = action === 'restore'
+      ? `/transactions/restore-many?ids=${encodeURIComponent(ids.join(','))}`
+      : `/transactions?ids=${encodeURIComponent(ids.join(','))}&mode=${action === 'hard' ? 'hard' : 'soft'}`;
+    const method = action === 'restore' ? 'PUT' : 'DELETE';
+    const res = await FinanceUtils.fetchWithAuth(endpoint, { method });
+    if (!res.success) throw new Error(res.error || 'Bulk action failed');
+    if (action === 'restore') {
+      transactions = transactions.map((item) => selectedTxnIds.has(item.id) ? { ...item, is_deleted: false } : item);
+    } else if (action === 'soft') {
+      transactions = transactions.map((item) => selectedTxnIds.has(item.id) ? { ...item, is_deleted: true } : item);
+    } else {
+      transactions = transactions.filter((item) => !selectedTxnIds.has(item.id));
+    }
+    FinanceUtils.showToast(
+      action === 'restore' ? 'Selected transactions restored' : action === 'hard' ? 'Selected transactions deleted' : 'Selected transactions archived',
+      'success'
+    );
+    clearSelection();
+    await loadTransactions(getServerFilterParamsFromState());
+  } catch (err) {
+    FinanceUtils.showToast(err.message, 'error');
+    ids.forEach((id) => delete pendingTxnActions[id]);
+    renderTable(transactions);
+  }
+}
+
+function bulkArchiveSelected() {
+  runBulkAction('soft');
+}
+
+function bulkRestoreSelected() {
+  runBulkAction('restore');
+}
+
+function bulkDeleteSelected() {
+  runBulkAction('hard');
+}
+
+async function hardDelete(id) {
+  if (!confirm('Permanently delete this transaction?')) return;
+  pendingTxnActions[id] = 'hard';
+  renderTable(transactions);
+  try {
+    const res = await FinanceUtils.fetchWithAuth(`/transactions/${id}?mode=hard`, { method: 'DELETE' });
+    if (!res.success) throw new Error(res.error || 'Failed to delete');
+    transactions = transactions.filter((item) => item.id !== id);
+    FinanceUtils.showToast('Transaction deleted successfully', 'success');
+    clearPendingTxnAction(id);
+    await loadTransactions(getServerFilterParamsFromState());
+  } catch (err) {
+    console.error('Hard delete error:', err);
+    FinanceUtils.showToast(err.message, 'error');
+    clearPendingTxnAction(id);
+    return;
+  }
+}
+
+// Initialize
+checkAdmin().then(async (isAdmin) => {
+  if (!isAdmin) return;
+  await loadCategories();
+  renderActiveFilters();
+  await loadTransactions(getServerFilterParamsFromState());
+});
+
+document.getElementById('userFilter').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') applyFilters();
+});
+
+document.getElementById('txnPageSize').addEventListener('change', function(e) {
+  txnPagination.limit = parseInt(e.target.value, 10);
+  txnPagination.offset = 0;
+  loadTransactions(getServerFilterParamsFromState());
+});
+
+document.getElementById('selectAllAdminTransactions').addEventListener('change', function(e) {
+  toggleSelectAllTransactions(e.target.checked);
+});
+</script>
+
+</body>
+</html>

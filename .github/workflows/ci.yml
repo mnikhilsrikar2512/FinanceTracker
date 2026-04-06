@@ -61,6 +61,10 @@ ENV
       - name: Run tests
         run: |
           pytest -q
+      - name: Validate Wireframe Presence
+        run: |
+          if [ -f docs/website_wireframe.md ]; then echo "Wireframe present"; else echo "Wireframe missing"; exit 1; fi
+          if ! grep -q "Dashboard" docs/website_wireframe.md; then echo "Wireframe missing Dashboard section"; exit 1; fi
 
       - name: Teardown
         if: always()

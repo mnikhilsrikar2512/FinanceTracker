@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Profile | Finly</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            primary: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              200: '#bfdbfe',
+              300: '#93c5fd',
+              400: '#60a5fa',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+              800: '#1e40af',
+              900: '#1e3a8a'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <script src="js/core/utils.js?v=20260403-profile"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=20260403-profile">
+</head>
+
+<body class="bg-[#FBFBFD] dark:bg-black transition-colors duration-300">
+<div class="sidebar" id="sidebar">
+  <div class="sidebar-logo">Finly</div>
+  <nav class="sidebar-nav" data-sidebar="user"></nav>
+
+  <div class="mt-auto pt-6 border-t border-gray-200 dark:border-white/10">
+    <button onclick="FinanceUtils.logout()" class="sidebar-item w-full border-none cursor-pointer group">
+      <svg class="w-5 h-5 mr-3 text-gray-400 group-hover:text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+      </svg>
+      <span class="group-hover:text-red-500">Log Out</span>
+    </button>
+  </div>
+</div>
+
+<div class="main-content">
+  <header class="top-nav">
+    <div>
+      <div class="page-title-row">
+        <h1 class="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">Profile & Security</h1>
+        <div class="page-help" tabindex="0">
+          <button type="button" class="page-help-button" aria-label="What this page is for">i</button>
+          <div class="page-help-tooltip">
+            <strong>Profile</strong>
+            <p>Review your account details, update credentials, and use the danger zone only when you truly want to leave Finly.</p>
+          </div>
+        </div>
+      </div>
+      <p class="text-sm text-gray-500 dark:text-gray-400 font-medium mt-1 uppercase tracking-widest">Manage your account details and access</p>
+    </div>
+    <div class="header-cluster">
+      <span class="context-chip context-chip-user">Personal Workspace</span>
+      <div data-header-tools="default"></div>
+    </div>
+  </header>
+
+  <main class="mt-8 max-w-6xl">
+    <div id="profileFeedback" class="hidden mb-6 p-4 rounded-lg text-xs font-bold uppercase tracking-wide border"></div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-[1.1fr_0.9fr] gap-8">
+      <section class="space-y-8">
+        <div class="apple-card">
+          <div class="flex items-start justify-between gap-4 mb-6">
+            <div>
+              <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Account Overview</p>
+              <h2 class="text-xl font-bold text-gray-900 dark:text-white">Your Finly profile</h2>
+              <p class="text-sm text-gray-500 dark:text-gray-400 font-medium mt-1">These details describe your identity in the product.</p>
+            </div>
+            <span id="profileRoleChip" class="context-chip context-chip-user">User</span>
+          </div>
+          <div id="profileOverviewGrid" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="rounded-2xl border border-gray-100 dark:border-white/10 bg-[#FBFBFD] dark:bg-white/5 px-4 py-4">
+              <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Full Name</p>
+              <p id="overviewName" class="text-base font-bold text-gray-900 dark:text-white">Loading...</p>
+            </div>
+            <div class="rounded-2xl border border-gray-100 dark:border-white/10 bg-[#FBFBFD] dark:bg-white/5 px-4 py-4">
+              <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Email Address</p>
+              <p id="overviewEmail" class="text-base font-bold text-gray-900 dark:text-white break-all">Loading...</p>
+            </div>
+            <div class="rounded-2xl border border-gray-100 dark:border-white/10 bg-[#FBFBFD] dark:bg-white/5 px-4 py-4">
+              <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Status</p>
+              <p id="overviewStatus" class="text-base font-bold text-gray-900 dark:text-white">Loading...</p>
+            </div>
+            <div class="rounded-2xl border border-gray-100 dark:border-white/10 bg-[#FBFBFD] dark:bg-white/5 px-4 py-4">
+              <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Member Since</p>
+              <p id="overviewCreatedAt" class="text-base font-bold text-gray-900 dark:text-white">Loading...</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="apple-card">
+          <div class="mb-6">
+            <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Profile Details</p>
+            <h2 class="text-xl font-bold text-gray-900 dark:text-white">Update your name or email</h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400 font-medium mt-1">Keep these details current so account recovery and activity history stay clear.</p>
+          </div>
+          <form id="profileForm" class="space-y-5">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 block">Full Name</label>
+                <input type="text" id="profileName" name="profileName" class="apple-input" placeholder="Your full name" />
+              </div>
+              <div>
+                <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 block">Email Address</label>
+                <input type="email" id="profileEmail" name="profileEmail" class="apple-input" placeholder="name@company.com" />
+              </div>
+            </div>
+            <div class="flex flex-wrap gap-3">
+              <button type="submit" id="saveProfileBtn" class="btn btn-primary">Save Profile</button>
+              <button type="button" id="resetProfileBtn" class="btn btn-secondary">Reset Changes</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section class="space-y-8">
+        <div class="apple-card">
+          <div class="mb-6">
+            <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Password</p>
+            <h2 class="text-xl font-bold text-gray-900 dark:text-white">Change your password</h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400 font-medium mt-1">Use at least 8 characters with uppercase, lowercase, and a number.</p>
+          </div>
+          <form id="passwordForm" class="space-y-5">
+            <div>
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 block">Current Password</label>
+              <input type="password" id="oldPassword" name="oldPassword" class="apple-input" placeholder="Enter current password" />
+            </div>
+            <div>
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 block">New Password</label>
+              <input type="password" id="newPassword" name="newPassword" class="apple-input" placeholder="Minimum 8 chars, upper/lower/number" />
+            </div>
+            <div>
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 block">Confirm New Password</label>
+              <input type="password" id="confirmNewPassword" name="confirmNewPassword" class="apple-input" placeholder="Repeat new password" />
+            </div>
+            <button type="submit" id="changePasswordBtn" class="btn btn-primary">Update Password</button>
+          </form>
+        </div>
+
+        <div class="apple-card surface-accent-orange">
+          <div class="mb-6">
+            <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Danger Zone</p>
+            <h2 class="text-xl font-bold text-gray-900 dark:text-white">Logout or remove your account</h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400 font-medium mt-1">Log out when you are done. Delete your account only if you want to permanently leave Finly.</p>
+          </div>
+          <div class="rounded-2xl border border-orange-100 dark:border-orange-500/20 bg-orange-50/80 dark:bg-orange-500/10 p-4 mb-5">
+            <p class="text-xs font-bold text-orange-700 dark:text-orange-300 uppercase tracking-widest">Delete is permanent</p>
+            <p class="text-sm text-orange-700/90 dark:text-orange-200 mt-2">This action removes your account and signs you out immediately. Type <strong>DELETE</strong> before confirming.</p>
+          </div>
+          <div class="space-y-4">
+            <button type="button" id="logoutBtn" class="btn btn-secondary w-full justify-center">Log Out</button>
+            <div>
+              <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 block">Confirm Deletion</label>
+              <input type="text" id="deleteConfirmation" class="apple-input" placeholder="Type DELETE to enable account deletion" />
+            </div>
+            <button type="button" id="deleteAccountBtn" class="btn w-full justify-center" style="background:#ef4444;color:white;" disabled>Delete My Account</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<script src="js/layout/sidebar.js"></script>
+<script src="js/layout/header-actions.js"></script>
+<script>
+const token = localStorage.getItem("token");
+if (!token) {
+  window.location.href = "login.html";
+}
+
+let currentProfile = null;
+
+function showFeedback(message, tone = "info") {
+  const feedback = document.getElementById("profileFeedback");
+  const toneMap = {
+    success: "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border-green-100 dark:border-green-900/40",
+    error: "bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border-red-100 dark:border-red-900/50",
+    info: "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-blue-100 dark:border-blue-900/40"
+  };
+  feedback.className = `${toneMap[tone] || toneMap.info} mb-6 p-4 rounded-lg text-xs font-bold uppercase tracking-wide border`;
+  feedback.textContent = message;
+  feedback.classList.remove("hidden");
+}
+
+function populateProfile(user) {
+  currentProfile = user;
+  document.getElementById("overviewName").textContent = user.name || "Not set";
+  document.getElementById("overviewEmail").textContent = user.email || "Not set";
+  document.getElementById("overviewStatus").textContent = (user.status || "active").replace(/^./, c => c.toUpperCase());
+  document.getElementById("overviewCreatedAt").textContent = user.created_at ? FinanceUtils.formatDate(user.created_at) : "Unavailable";
+  document.getElementById("profileName").value = user.name || "";
+  document.getElementById("profileEmail").value = user.email || "";
+  const roleChip = document.getElementById("profileRoleChip");
+  roleChip.textContent = user.role === "admin" ? "Admin Account" : "User Account";
+  roleChip.className = user.role === "admin"
+    ? "context-chip context-chip-admin"
+    : "context-chip context-chip-user";
+}
+
+async function loadProfile() {
+  try {
+    const res = await FinanceUtils.fetchWithAuth("/users/me");
+    if (!res?.success) throw new Error("Failed to load profile");
+    populateProfile(res.data);
+  } catch (error) {
+    FinanceUtils.showToast("Failed to load profile", "error");
+    showFeedback("We could not load your profile right now. Please refresh and try again.", "error");
+  }
+}
+
+document.getElementById("profileForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  FinanceUtils.clearFormErrors(form);
+  const name = document.getElementById("profileName").value.trim();
+  const email = FinanceUtils.normalizeEmail(document.getElementById("profileEmail").value);
+  document.getElementById("profileEmail").value = email;
+
+  const validation = FinanceUtils.validateForm(form, {
+    profileName: [
+      { required: true, message: "Name is required" },
+      { minLength: 2, message: "Name is too short" }
+    ],
+    profileEmail: [
+      { required: true, message: "Email is required" },
+      { email: true, message: "Please enter a valid email address" }
+    ]
+  });
+
+  if (!validation.isValid) {
+    FinanceUtils.showFormErrors(form, validation.errors);
+    return;
+  }
+
+  if (currentProfile && currentProfile.name === name && currentProfile.email === email) {
+    FinanceUtils.showToast("No profile changes to save", "info");
+    return;
+  }
+
+  const button = document.getElementById("saveProfileBtn");
+  button.disabled = true;
+  button.textContent = "Saving...";
+
+  try {
+    const response = await FinanceUtils.fetchWithAuth("/users/me", {
+      method: "PUT",
+      body: JSON.stringify({ name, email })
+    });
+    populateProfile(response.data);
+    showFeedback("Profile updated successfully.", "success");
+    FinanceUtils.showToast("Profile updated", "success");
+  } catch (error) {
+    showFeedback(error.message, "error");
+    FinanceUtils.showToast(error.message, "error");
+  } finally {
+    button.disabled = false;
+    button.textContent = "Save Profile";
+  }
+});
+
+document.getElementById("resetProfileBtn").addEventListener("click", () => {
+  if (!currentProfile) return;
+  document.getElementById("profileName").value = currentProfile.name || "";
+  document.getElementById("profileEmail").value = currentProfile.email || "";
+  FinanceUtils.clearFormErrors(document.getElementById("profileForm"));
+});
+
+document.getElementById("passwordForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  FinanceUtils.clearFormErrors(form);
+
+  const oldPassword = document.getElementById("oldPassword").value;
+  const newPassword = document.getElementById("newPassword").value;
+  const confirmNewPassword = document.getElementById("confirmNewPassword").value;
+  const passwordStrengthError = FinanceUtils.getPasswordStrengthError(newPassword);
+
+  const validation = FinanceUtils.validateForm(form, {
+    oldPassword: [{ required: true, message: "Current password is required" }],
+    newPassword: [{ required: true, message: "New password is required" }],
+    confirmNewPassword: [{ required: true, message: "Please confirm the new password" }]
+  });
+
+  if (!validation.isValid) {
+    FinanceUtils.showFormErrors(form, validation.errors);
+    return;
+  }
+
+  if (passwordStrengthError) {
+    FinanceUtils.showFormErrors(form, { newPassword: passwordStrengthError });
+    return;
+  }
+
+  if (newPassword !== confirmNewPassword) {
+    FinanceUtils.showFormErrors(form, { confirmNewPassword: "Passwords do not match" });
+    return;
+  }
+
+  const button = document.getElementById("changePasswordBtn");
+  button.disabled = true;
+  button.textContent = "Updating...";
+
+  try {
+    await FinanceUtils.fetchWithAuth("/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify({ old_password: oldPassword, new_password: newPassword })
+    });
+    form.reset();
+    showFeedback("Password updated successfully.", "success");
+    FinanceUtils.showToast("Password updated", "success");
+  } catch (error) {
+    showFeedback(error.message, "error");
+    FinanceUtils.showToast(error.message, "error");
+  } finally {
+    button.disabled = false;
+    button.textContent = "Update Password";
+  }
+});
+
+document.getElementById("logoutBtn").addEventListener("click", () => {
+  FinanceUtils.logout();
+});
+
+document.getElementById("deleteConfirmation").addEventListener("input", (event) => {
+  document.getElementById("deleteAccountBtn").disabled = event.target.value.trim() !== "DELETE";
+});
+
+document.getElementById("deleteAccountBtn").addEventListener("click", async () => {
+  const confirmationValue = document.getElementById("deleteConfirmation").value.trim();
+  if (confirmationValue !== "DELETE") {
+    FinanceUtils.showToast('Type DELETE to enable account deletion', 'error');
+    return;
+  }
+
+  const confirmed = window.confirm("Delete your account permanently? This cannot be undone.");
+  if (!confirmed) return;
+
+  const button = document.getElementById("deleteAccountBtn");
+  button.disabled = true;
+  button.textContent = "Deleting Account...";
+
+  try {
+    await FinanceUtils.fetchWithAuth("/users/me", { method: "DELETE" });
+    localStorage.removeItem("token");
+    localStorage.removeItem("finance_user_role");
+    sessionStorage.removeItem("finly_auth_notice");
+    sessionStorage.removeItem("finly_reset_email");
+    sessionStorage.removeItem("finly_reset_notice");
+    FinanceUtils.showToast("Account deleted", "success");
+    window.location.href = "index.html";
+  } catch (error) {
+    showFeedback(error.message, "error");
+    FinanceUtils.showToast(error.message, "error");
+    button.disabled = false;
+    button.textContent = "Delete My Account";
+  }
+});
+
+document.getElementById("profileEmail").addEventListener("blur", (event) => {
+  event.target.value = FinanceUtils.normalizeEmail(event.target.value);
+});
+
+loadProfile();
+</script>
+</body>
+</html>

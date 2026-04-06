@@ -22,7 +22,7 @@ def api_error_response(status_code: int, code: str, message: str, detail: str | 
         "error": message,
         "error_code": code,
         "path": path or "",
-        "timestamp": datetime.datetime.utcnow().isoformat()
+        "timestamp": datetime.datetime.now(datetime.UTC).isoformat()
     }
     if detail is not None:
         payload["detail"] = detail
@@ -88,7 +88,7 @@ def http_exception_handler(request: Request, exc: StarletteHTTPException):
         exc.status_code,
         error_code,
         exc.detail or "Error",
-        detail=str(request.url.path),
+        path=str(request.url.path),
     )
 
 
@@ -98,7 +98,7 @@ def app_exception_handler(request: Request, exc: AppException):
         exc.status_code,
         exc.error_code,
         exc.detail,
-        detail=str(request.url.path),
+        path=str(request.url.path),
     )
 
 
@@ -116,6 +116,7 @@ def validation_exception_handler(request: Request, exc: RequestValidationError):
         "ERR_VALIDATION",
         "Validation Error",
         detail=str(errors),
+        path=str(request.url.path),
     )
 
 
@@ -128,20 +129,20 @@ def integrity_error_handler(request: Request, exc: IntegrityError):
             409,
             "ERR_DUPLICATE",
             "Duplicate entry. This record already exists.",
-            detail=str(request.url.path),
+            path=str(request.url.path),
         )
     if "foreign key" in error_msg.lower():
         return api_error_response(
             400,
             "ERR_REFERENCE",
             "Referenced entity not found",
-            detail=str(request.url.path),
+            path=str(request.url.path),
         )
     return api_error_response(
         400,
         "ERR_CONSTRAINT",
         "Database constraint violation",
-        detail=str(request.url.path),
+        path=str(request.url.path),
     )
 
 
@@ -151,7 +152,7 @@ def operational_error_handler(request: Request, exc: OperationalError):
         503,
         "ERR_DB_UNAVAILABLE",
         "Database temporarily unavailable",
-        detail=str(request.url.path),
+        path=str(request.url.path),
     )
 
 
@@ -161,7 +162,7 @@ def database_error_handler(request: Request, exc: SQLAlchemyError):
         500,
         "ERR_INTERNAL",
         "Internal server error",
-        detail=str(request.url.path),
+        path=str(request.url.path),
     )
 
 
@@ -171,5 +172,5 @@ def generic_exception_handler(request: Request, exc: Exception):
         500,
         "ERR_INTERNAL",
         "Internal server error",
-        detail=str(request.url.path),
+        path=str(request.url.path),
     )

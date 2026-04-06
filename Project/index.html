@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Finly | Shared Finance Visibility</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            primary: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              200: '#bfdbfe',
+              300: '#93c5fd',
+              400: '#60a5fa',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+              800: '#1e40af',
+              900: '#1e3a8a'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=20260402-landing">
+</head>
+
+<body class="landing-body bg-[#f6f8ff] dark:bg-[#030712] text-slate-900 dark:text-white min-h-screen transition-colors duration-300">
+  <div class="landing-shell">
+    <header class="landing-nav">
+      <a href="index.html" class="landing-brand">Finly</a>
+      <div class="landing-nav-actions">
+        <div data-header-tools="default"></div>
+        <a href="support.html" class="btn btn-secondary landing-nav-link">Support</a>
+        <a href="login.html" class="btn btn-secondary landing-nav-link">Log In</a>
+        <a href="signup.html" class="btn btn-primary landing-nav-link">Get Started</a>
+      </div>
+    </header>
+
+    <main class="landing-main">
+      <section class="landing-hero">
+        <div class="landing-hero-copy">
+          <span class="landing-pill">Finance Tracking For Teams And Individuals</span>
+          <h1 class="landing-title">See spending clearly, guide budgets confidently, and give admins the full picture.</h1>
+          <p class="landing-subtitle">
+            Finly helps users track daily income and expenses while giving admins a clean system-wide audit surface.
+            It is designed so new teammates can understand the product quickly without digging through screens.
+          </p>
+          <div class="landing-cta-row">
+            <a href="signup.html" class="btn btn-primary landing-hero-btn">Create Account</a>
+            <a href="login.html" class="btn btn-secondary landing-hero-btn">Log In</a>
+          </div>
+          <div class="landing-proof-grid">
+            <div class="landing-proof-card">
+              <strong>Track transactions</strong>
+              <span>Add income and expenses with clear filters, pagination, and exports.</span>
+            </div>
+            <div class="landing-proof-card">
+              <strong>Set smarter budgets</strong>
+              <span>Watch category-level progress and spot overspending early.</span>
+            </div>
+            <div class="landing-proof-card">
+              <strong>Audit at admin level</strong>
+              <span>Review users, logs, and system analytics from one place.</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="landing-hero-visual">
+          <div class="landing-dashboard-card landing-dashboard-card-main">
+            <div class="landing-mini-header">
+              <span>Personal Workspace</span>
+              <strong>Today</strong>
+            </div>
+            <div class="landing-mini-metric-row">
+              <div>
+                <label>Balance</label>
+                <strong>₹1,83,350</strong>
+              </div>
+              <div>
+                <label>Active budgets</label>
+                <strong>3</strong>
+              </div>
+            </div>
+            <div class="landing-mini-chart">
+              <div class="landing-mini-chart-bar landing-mini-chart-bar-blue"></div>
+              <div class="landing-mini-chart-bar landing-mini-chart-bar-soft"></div>
+              <div class="landing-mini-chart-bar landing-mini-chart-bar-blue"></div>
+              <div class="landing-mini-chart-bar landing-mini-chart-bar-coral"></div>
+              <div class="landing-mini-chart-bar landing-mini-chart-bar-blue"></div>
+            </div>
+          </div>
+
+          <div class="landing-dashboard-card landing-dashboard-card-float">
+            <span class="landing-float-label">Admin View</span>
+            <strong>System Analytics</strong>
+            <p>See global inflow, outflow, user activity, and category mix without switching tools.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="landing-section">
+        <div class="landing-section-heading">
+          <span class="landing-pill landing-pill-muted">How It Works</span>
+          <h2>Easy to understand for both users and admins</h2>
+          <p>We now separate the first impression from the product workspace, so shared links feel more professional and self-explanatory.</p>
+        </div>
+        <div class="landing-role-grid">
+          <article class="landing-role-card">
+            <div class="landing-role-eyebrow">For users</div>
+            <h3>Personal finance flow</h3>
+            <ul class="landing-list">
+              <li>Add transactions quickly and filter them by date, category, and type.</li>
+              <li>See reports, spending mix, and budget health in one personal workspace.</li>
+              <li>Track notifications and recent activity without admin clutter.</li>
+            </ul>
+          </article>
+          <article class="landing-role-card landing-role-card-admin">
+            <div class="landing-role-eyebrow">For admins</div>
+            <h3>Operational oversight</h3>
+            <ul class="landing-list">
+              <li>Review system transactions, logs, user activity, and category usage.</li>
+              <li>Open dedicated admin analytics backed by a real system API endpoint.</li>
+              <li>Audit and manage users without affecting the personal budgeting experience.</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section class="landing-section landing-section-surface">
+        <div class="landing-section-heading">
+          <span class="landing-pill landing-pill-muted">Product Tour</span>
+          <h2>What new visitors should know right away</h2>
+        </div>
+        <div class="landing-feature-grid">
+          <article class="landing-feature-card">
+            <strong>Transactions</strong>
+            <p>Everything starts here. Users add entries, sort them, filter them, and export them when needed.</p>
+          </article>
+          <article class="landing-feature-card">
+            <strong>Budgets</strong>
+            <p>Budgets are personal. They compare your expense transactions against category limits during a selected time window.</p>
+          </article>
+          <article class="landing-feature-card">
+            <strong>Reports</strong>
+            <p>Users get personal analytics. Admins see system-level analytics with totals, trends, and category mix.</p>
+          </article>
+          <article class="landing-feature-card">
+            <strong>Logs</strong>
+            <p>Users see personal activity history, while admins get operational log visibility for the platform.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="help" class="landing-section">
+        <div class="landing-section-heading">
+          <span class="landing-pill landing-pill-muted">Start Here</span>
+          <h2>Choose the right next step</h2>
+        </div>
+        <div class="landing-onboard-grid">
+          <div class="landing-onboard-card">
+            <strong>New user</strong>
+            <p>Create an account, add your first transaction, then set a monthly budget.</p>
+            <a href="signup.html" class="btn btn-primary">Sign Up</a>
+          </div>
+          <div class="landing-onboard-card">
+            <strong>Existing user</strong>
+            <p>Jump back into your workspace and review transactions, reports, and budget health.</p>
+            <a href="login.html" class="btn btn-secondary">Log In</a>
+          </div>
+          <div class="landing-onboard-card">
+            <strong>Admin reviewer</strong>
+            <p>Use the admin workspace to inspect users, platform transactions, logs, and system analytics.</p>
+            <a href="login.html" class="btn btn-secondary">Open Admin Login</a>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="js/core/utils.js?v=20260402-landing"></script>
+  <script>
+    (async () => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      try {
+        const user = await FinanceUtils.getCurrentUser();
+        if (!user) return;
+
+        const row = document.querySelector('.landing-cta-row');
+        if (row) {
+          row.innerHTML = `
+            <a href="${user.role === 'admin' ? 'admin.html' : 'app.html'}" class="btn btn-primary landing-hero-btn">Continue To Workspace</a>
+            <a href="${user.role === 'admin' ? 'reports.html' : 'transactions.html'}" class="btn btn-secondary landing-hero-btn">Open ${user.role === 'admin' ? 'Analytics' : 'Transactions'}</a>
+          `;
+        }
+      } catch (error) {
+        console.error('Landing session restore failed:', error);
+      }
+    })();
+  </script>
+</body>
+</html>

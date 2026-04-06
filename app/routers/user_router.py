@@ -1,19 +1,24 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from sqlalchemy.exc import SQLAlchemyError
+from pydantic import BaseModel, EmailStr
 from app.schemas.user import UserResponse
 from app.services import user_service
+from app.services.log_service import log_action
 from app.core.deps import get_db
 from app.core.auth import get_current_user
 from app.core.response import success_response
 from app.models.user import User
+from app.models.transaction import Transaction
+from app.models.budget import Budget
+from app.repositories import user_repo
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
 
 class ProfileUpdate(BaseModel):
     name: str | None = None
-    email: str | None = None
+    email: EmailStr | None = None
 
 
 @router.get("/me")
@@ -40,13 +45,36 @@ def update_profile(
             detail="At least one field (name or email) must be provided"
         )
     
-    if data.name:
-        current_user.name = data.name
-    if data.email:
-        current_user.email = data.email
+    if data.name is not None:
+        normalized_name = data.name.strip()
+        if not normalized_name:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Name cannot be empty"
+            )
+        current_user.name = normalized_name
+
+    if data.email is not None:
+        normalized_email = user_service.normalize_email(data.email)
+        existing_user = user_repo.get_user_by_email(db, normalized_email)
+        if existing_user and existing_user.id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already exists"
+            )
+        current_user.email = normalized_email
     
     db.commit()
     db.refresh(current_user)
+
+    log_action(
+        action="UPDATE_PROFILE",
+        user_id=current_user.id,
+        payload={"name": current_user.name, "email": current_user.email},
+        entity_type="user",
+        entity_id=current_user.id,
+        level="INFO"
+    )
     
     return success_response(data={
         "id": current_user.id,
@@ -64,8 +92,56 @@ def delete_account(
     db: Session = Depends(get_db)
 ):
     user_email = current_user.email
-    db.delete(current_user)
-    db.commit()
+    user_id = current_user.id
+
+    if current_user.role == "admin":
+        remaining_admins = db.query(User).filter(
+            User.role == "admin",
+            User.id != user_id
+        ).count()
+        if remaining_admins == 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="You cannot delete the last admin account"
+            )
+
+    try:
+        # Remove owned records first so the user row can be deleted safely.
+        deleted_budget_count = db.query(Budget).filter(Budget.user_id == user_id).delete(synchronize_session=False)
+        deleted_transaction_count = db.query(Transaction).filter(Transaction.user_id == user_id).delete(synchronize_session=False)
+
+        # Preserve historical records created by this user on other accounts by nulling audit references.
+        db.query(Transaction).filter(Transaction.created_by == user_id).update(
+            {Transaction.created_by: None},
+            synchronize_session=False
+        )
+        db.query(Transaction).filter(Transaction.modified_by == user_id).update(
+            {Transaction.modified_by: None},
+            synchronize_session=False
+        )
+
+        db.delete(current_user)
+        db.commit()
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="We could not delete this account right now. Please try again."
+        )
+
+    log_action(
+        action="DELETE_ACCOUNT",
+        user_id=user_id,
+        payload={
+            "email": user_email,
+            "deleted_transactions": deleted_transaction_count,
+            "deleted_budgets": deleted_budget_count,
+        },
+        entity_type="user",
+        entity_id=user_id,
+        level="WARNING"
+    )
+
     return success_response(message=f"Account {user_email} has been deleted")
 
 

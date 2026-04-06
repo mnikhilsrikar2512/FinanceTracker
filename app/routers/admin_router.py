@@ -1,8 +1,11 @@
 """Admin router: privileged endpoints for user management and config"""
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
-from pydantic import BaseModel
 from datetime import datetime
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+from sqlalchemy import Date, and_, case, cast, func
+
 from app.core.deps import get_db
 from app.core.auth import get_current_user, require_admin
 from app.core.response import success_response, paginated_response
@@ -20,6 +23,14 @@ class UserStatusUpdate(BaseModel):
     status: str
 
 
+def _apply_transaction_date_filters(query, start_date: datetime = None, end_date: datetime = None):
+    if start_date:
+        query = query.filter(Transaction.date >= start_date)
+    if end_date:
+        query = query.filter(Transaction.date <= end_date)
+    return query
+
+
 @router.get("/dashboard")
 def admin_dashboard(
     db: Session = Depends(get_db),
@@ -29,7 +40,7 @@ def admin_dashboard(
     active_users = db.query(User).filter(User.status == "active").count()
     blocked_users = db.query(User).filter(User.status == "blocked").count()
     admin_count = db.query(User).filter(User.role == "admin").count()
-    total_transactions = db.query(Transaction).count()
+    total_transactions = db.query(Transaction).filter(Transaction.is_deleted != True).count()
 
     return success_response(data={
         "total_users": total_users,
@@ -37,6 +48,215 @@ def admin_dashboard(
         "blocked_users": blocked_users,
         "admin_users": admin_count,
         "total_transactions": total_transactions
+    })
+
+
+@router.get("/analytics")
+def admin_analytics(
+    start_date: datetime = Query(default=None, description="Start date"),
+    end_date: datetime = Query(default=None, description="End date"),
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(require_admin)
+):
+    base_query = db.query(Transaction).filter(Transaction.is_deleted != True)
+    base_query = _apply_transaction_date_filters(base_query, start_date, end_date)
+
+    income_total = _apply_transaction_date_filters(
+        db.query(func.sum(Transaction.amount))
+        .join(Category, Transaction.category_id == Category.id)
+        .filter(Transaction.is_deleted != True, Category.type == "income"),
+        start_date,
+        end_date,
+    ).scalar() or 0
+
+    raw_expense_total = _apply_transaction_date_filters(
+        db.query(func.sum(Transaction.amount))
+        .join(Category, Transaction.category_id == Category.id)
+        .filter(Transaction.is_deleted != True, Category.type == "expense"),
+        start_date,
+        end_date,
+    ).scalar() or 0
+    expense_total = abs(raw_expense_total)
+    average_transaction = _apply_transaction_date_filters(
+        db.query(func.avg(func.abs(Transaction.amount))).filter(Transaction.is_deleted != True),
+        start_date,
+        end_date,
+    ).scalar() or 0
+
+    expense_category_rows = _apply_transaction_date_filters(
+        db.query(
+            Category.name.label("category"),
+            func.sum(func.abs(Transaction.amount)).label("total"),
+        )
+        .join(Category, Transaction.category_id == Category.id)
+        .filter(Transaction.is_deleted != True, Category.type == "expense"),
+        start_date,
+        end_date,
+    ).group_by(Category.name).all()
+
+    category_summary = [
+        {
+            "category": row.category,
+            "total": float(row.total or 0),
+        }
+        for row in expense_category_rows
+    ]
+
+    top_category = max(category_summary, key=lambda item: item["total"], default=None)
+
+    highest_expense = _apply_transaction_date_filters(
+        db.query(Transaction, Category.name.label("category_name"))
+        .join(Category, Transaction.category_id == Category.id)
+        .filter(Transaction.is_deleted != True, Category.type == "expense"),
+        start_date,
+        end_date,
+    ).order_by(func.abs(Transaction.amount).desc(), Transaction.date.desc()).first()
+
+    monthly_rows = _apply_transaction_date_filters(
+        db.query(
+            func.year(Transaction.date).label("year"),
+            func.month(Transaction.date).label("month"),
+            Category.type.label("type"),
+            func.sum(Transaction.amount).label("total"),
+        )
+        .join(Category, Transaction.category_id == Category.id)
+        .filter(Transaction.is_deleted != True),
+        start_date,
+        end_date,
+    ).group_by(
+        func.year(Transaction.date),
+        func.month(Transaction.date),
+        Category.type,
+    ).order_by(
+        func.year(Transaction.date),
+        func.month(Transaction.date),
+    ).all()
+
+    monthly_summary = [
+        {
+            "year": row.year,
+            "month": row.month,
+            "type": row.type,
+            "total": float(abs(row.total or 0) if row.type == "expense" else (row.total or 0)),
+        }
+        for row in monthly_rows
+    ]
+
+    transaction_count = base_query.count()
+
+    if start_date and end_date:
+        day_span = max((end_date.date() - start_date.date()).days + 1, 1)
+    else:
+        day_span = _apply_transaction_date_filters(
+            db.query(func.count(func.distinct(cast(Transaction.date, Date)))),
+            start_date,
+            end_date,
+        ).filter(Transaction.is_deleted != True).scalar() or 0
+        if not day_span:
+            day_span = 1
+
+    transactions_per_day = round(transaction_count / day_span, 1) if transaction_count else 0
+
+    trend_direction = "Stable"
+    monthly_by_period = {}
+    for item in monthly_summary:
+        key = f"{item['year']}-{item['month']:02d}"
+        monthly_by_period.setdefault(key, {"income": 0, "expense": 0})
+        monthly_by_period[key][item["type"]] = item["total"]
+
+    sorted_periods = sorted(monthly_by_period.keys())
+    if len(sorted_periods) >= 2:
+        current_key = sorted_periods[-1]
+        previous_key = sorted_periods[-2]
+        current_net = monthly_by_period[current_key]["income"] - monthly_by_period[current_key]["expense"]
+        previous_net = monthly_by_period[previous_key]["income"] - monthly_by_period[previous_key]["expense"]
+        if current_net > previous_net:
+            trend_direction = "Improving"
+        elif current_net < previous_net:
+            trend_direction = "Cooling"
+
+    highest_transaction_data = None
+    if highest_expense:
+        expense_txn = highest_expense[0]
+        highest_transaction_data = {
+            "id": expense_txn.id,
+            "description": expense_txn.description,
+            "amount": float(abs(expense_txn.amount or 0)),
+            "date": expense_txn.date,
+            "category": highest_expense[1],
+        }
+
+    user_join_conditions = [
+        Transaction.user_id == User.id,
+        Transaction.is_deleted != True,
+    ]
+    if start_date:
+        user_join_conditions.append(Transaction.date >= start_date)
+    if end_date:
+        user_join_conditions.append(Transaction.date <= end_date)
+
+    user_summary_rows = (
+        db.query(
+            User.id.label("user_id"),
+            User.name.label("name"),
+            User.email.label("email"),
+            func.count(Transaction.id).label("transaction_count"),
+            func.sum(
+                case(
+                    (Category.type == "income", Transaction.amount),
+                    else_=0,
+                )
+            ).label("income_total"),
+            func.sum(
+                case(
+                    (Category.type == "expense", func.abs(Transaction.amount)),
+                    else_=0,
+                )
+            ).label("expense_total"),
+        )
+        .outerjoin(Transaction, and_(*user_join_conditions))
+        .outerjoin(Category, Transaction.category_id == Category.id)
+        .group_by(User.id, User.name, User.email)
+        .order_by(func.count(Transaction.id).desc(), User.name.asc())
+        .all()
+    )
+
+    user_summary = [
+        {
+            "user_id": row.user_id,
+            "name": row.name,
+            "email": row.email,
+            "transaction_count": int(row.transaction_count or 0),
+            "income_total": float(row.income_total or 0),
+            "expense_total": float(row.expense_total or 0),
+            "net_total": float((row.income_total or 0) - (row.expense_total or 0)),
+        }
+        for row in user_summary_rows
+        if int(row.transaction_count or 0) > 0
+    ]
+
+    return success_response(data={
+        "scope": "system",
+        "total_income": float(income_total),
+        "total_expense": float(expense_total),
+        "balance": float(income_total - expense_total),
+        "top_category": {
+            "name": top_category["category"],
+            "amount": top_category["total"],
+        } if top_category else None,
+        "highest_transaction": highest_transaction_data,
+        "transactions_per_day": transactions_per_day,
+        "transaction_count": transaction_count,
+        "avg_transaction": round(float(average_transaction), 2),
+        "trend_direction": trend_direction,
+        "monthly_summary": monthly_summary,
+        "category_summary": category_summary,
+        "user_summary": user_summary,
+        "user_counts": {
+            "total": db.query(User).count(),
+            "active": db.query(User).filter(User.status == "active").count(),
+            "blocked": db.query(User).filter(User.status == "blocked").count(),
+        },
     })
 
 
@@ -220,11 +440,11 @@ def get_user_transactions(
         filters["end_date"] = end_date.isoformat()
     
     if min_amount is not None:
-        query = query.filter(Transaction.amount >= min_amount)
+        query = query.filter(func.abs(Transaction.amount) >= min_amount)
         filters["min_amount"] = min_amount
     
     if max_amount is not None:
-        query = query.filter(Transaction.amount <= max_amount)
+        query = query.filter(func.abs(Transaction.amount) <= max_amount)
         filters["max_amount"] = max_amount
     
     if search:

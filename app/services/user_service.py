@@ -5,13 +5,18 @@ from app.services.log_service import log_action
 from app.core.auth import get_password_hash, verify_password, create_access_token
 
 
+def normalize_email(email: str) -> str:
+    return email.strip().lower()
+
+
 def signup(db: Session, name: str, email: str, password: str):
-    existing = user_repo.get_user_by_email(db, email)
+    normalized_email = normalize_email(email)
+    existing = user_repo.get_user_by_email(db, normalized_email)
     if existing:
         raise HTTPException(status_code=400, detail="Email already exists")
 
     password_hash = get_password_hash(password)
-    user = user_repo.create_user(db, name, email, password_hash)
+    user = user_repo.create_user(db, name.strip(), normalized_email, password_hash)
 
     log_action(
         action="USER_SIGNUP",
@@ -26,7 +31,8 @@ def signup(db: Session, name: str, email: str, password: str):
 
 
 def login(db: Session, email: str, password: str):
-    user = user_repo.get_user_by_email(db, email)
+    normalized_email = normalize_email(email)
+    user = user_repo.get_user_by_email(db, normalized_email)
     if not user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
@@ -47,7 +53,17 @@ def login(db: Session, email: str, password: str):
         level="INFO"
     )
 
-    return {"access_token": token, "token_type": "bearer"}
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": {
+            "id": user.id,
+            "name": user.name,
+            "email": user.email,
+            "role": user.role,
+            "status": user.status,
+        }
+    }
 
 
 def change_password(db: Session, user_id: int, old_password: str, new_password: str):
