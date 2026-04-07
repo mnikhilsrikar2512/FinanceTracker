@@ -236,8 +236,8 @@ Main sections:
   title, context chip, header tools
 - `Help tooltip`
   explains what the report is for
-- `Date toolbar`
-  filters the report range and supports export
+- `Report controls`
+  date range, display currency, and export actions
 - `Top metric cards`
   net savings, average inflow, average outflow
 - `Growth Trend`
@@ -266,6 +266,8 @@ Role behavior:
 
 - user reports show personal finance data only
 - admin reports show system-wide analytics and user activity summaries
+- report values can be displayed in the app currency or an explicit report currency override
+- on-screen admin user summaries stay ranked and compact for readability
 
 ### Budgets
 File: [`Project/budgets.html`]
@@ -324,7 +326,7 @@ Main sections:
 - `Severity and entity tags`
   give context such as info, warning, transaction, or budget
 - `Timestamp`
-  shows when the event happened
+  shows when the event happened in the viewer's local timezone
 - `Pagination`
   supports longer history
 
@@ -478,6 +480,11 @@ Main sections:
 - `Pagination`
   supports longer audit history
 
+Timestamp behavior:
+
+- timestamps are rendered in the viewer's local timezone
+- opening the same page in another region will show local time for that viewer
+
 How to read levels:
 
 - `INFO`
@@ -500,6 +507,8 @@ What is different from user reports:
 - includes all-user transaction summary
 - only includes users with activity in the selected range
 - export files are structured as system analytics reports rather than personal finance reports
+- includes ranked top active users instead of an unbounded visible user dump
+- supports a report-level display currency override for admin review and exports
 
 Main sections:
 

@@ -297,13 +297,17 @@ make share
 - user reports focus on personal spending and trends
 - admin reports focus on system-wide transaction summaries and user activity
 - both CSV and PDF exports include structured summaries instead of raw dumps
+- the reports page includes a dedicated display-currency control in addition to the shared app currency
+- admin report summaries are intentionally capped and ranked for readability instead of dumping every user into the visible report
 
 ### Localization
 
 - timestamps are rendered in the viewer's local timezone
 - time formatting follows the browser locale
 - shared currency utilities handle display formatting across the app
-- report exports are designed to stay readable and structured
+- currency display is dynamic in the UI, charts, CSV, and PDF exports
+- current conversion rates are demo/mock rates based on INR as the base currency
+- report exports are designed to stay readable and structured, even when the app is viewed in dark mode
 
 ### Budgets
 
