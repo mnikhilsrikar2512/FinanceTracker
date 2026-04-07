@@ -236,6 +236,14 @@ python scripts/init_db.py
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
+Do not start the app with:
+
+```bash
+python app/main.py
+```
+
+`app/main.py` defines the FastAPI application, but it should be served through Uvicorn.
+
 Then open:
 
 - [http://127.0.0.1:8000](http://127.0.0.1:8000)
@@ -289,6 +297,13 @@ make share
 - user reports focus on personal spending and trends
 - admin reports focus on system-wide transaction summaries and user activity
 - both CSV and PDF exports include structured summaries instead of raw dumps
+
+### Localization
+
+- timestamps are rendered in the viewer's local timezone
+- time formatting follows the browser locale
+- shared currency utilities handle display formatting across the app
+- report exports are designed to stay readable and structured
 
 ### Budgets
 
