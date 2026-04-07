@@ -15,17 +15,31 @@ function budgetTone(percent, isOver) {
       label: 'Over Budget'
     };
   }
-  if (percent > 85) {
+  if (percent >= 100) {
+    return {
+      progress: 'var(--apple-peach)',
+      text: 'var(--apple-peach)',
+      label: 'At Limit'
+    };
+  }
+  if (percent >= 75) {
     return {
       progress: 'var(--apple-amber)',
       text: 'var(--apple-amber)',
-      label: 'Watch Closely'
+      label: 'Approaching Limit'
+    };
+  }
+  if (percent >= 50) {
+    return {
+      progress: 'var(--apple-blue)',
+      text: 'var(--apple-blue)',
+      label: 'On Watch'
     };
   }
   return {
     progress: 'var(--apple-blue)',
     text: 'var(--apple-green)',
-    label: 'On Track'
+    label: 'Comfortable'
   };
 }
 
@@ -207,8 +221,8 @@ async function saveBudget() {
 
   try {
     const today = new Date();
-    const startDate = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
-    const endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
+    const startDate = FinanceUtils.getLocalDateInputValue(new Date(today.getFullYear(), today.getMonth(), 1));
+    const endDate = FinanceUtils.getLocalDateInputValue(new Date(today.getFullYear(), today.getMonth() + 1, 0));
 
     const res = await FinanceUtils.fetchWithAuth('/budgets', {
       method: 'POST',
@@ -271,3 +285,11 @@ async function remove(id) {
   await loadCategories();
   await loadBudgets();
 })();
+
+window.addEventListener('finly:currencychange', () => {
+  loadBudgets();
+});
+
+window.addEventListener('finly:localechange', () => {
+  loadBudgets();
+});

@@ -1,15 +1,21 @@
 (() => {
   const chartRegistry = new Set();
 
-  function applyGlobalChartDefaults() {
+  function applyGlobalChartDefaults(themeOverride = null) {
     if (!window.Chart) return;
-    const theme = getThemeColors();
+    const theme = getThemeColors(themeOverride);
     Chart.defaults.color = theme.legend;
     Chart.defaults.borderColor = theme.gridSoft;
   }
 
   function formatCurrency(value, compact = false) {
-    return new Intl.NumberFormat('en-IN', {
+    if (window.FinanceUtils?.formatCurrency) {
+      return window.FinanceUtils.formatCurrency(value, {
+        compact,
+        maximumFractionDigits: compact ? 1 : 0
+      });
+    }
+    return new Intl.NumberFormat(undefined, {
       style: 'currency',
       currency: 'INR',
       notation: compact ? 'compact' : 'standard',
@@ -41,8 +47,8 @@
     };
   }
 
-  function getThemeColors() {
-    const isDark = document.documentElement.classList.contains('dark');
+  function getThemeColors(themeOverride = null) {
+    const isDark = themeOverride ? themeOverride === 'dark' : document.documentElement.classList.contains('dark');
     return {
       legend: isDark ? '#edf2ff' : '#475569',
       ticks: isDark ? '#c2ccda' : '#64748b',
@@ -64,9 +70,9 @@
     return chart;
   }
 
-  function applyThemeToChart(chart) {
+  function applyThemeToChart(chart, themeOverride = null) {
     if (!chart) return;
-    const theme = getThemeColors();
+    const theme = getThemeColors(themeOverride);
     const options = chart.options || {};
 
     if (options.plugins?.legend?.labels) {
@@ -101,11 +107,12 @@
       expenseData = [],
       palette = 'minimal',
       legendPosition = 'top',
-      showLegend = true
+      showLegend = true,
+      themeOverride = null
     } = options;
 
     const colors = getPalette(palette);
-    const theme = getThemeColors();
+    const theme = getThemeColors(themeOverride);
     const ctx = canvas.getContext('2d');
 
     const incomeGradient = ctx.createLinearGradient(0, 0, 0, 320);
@@ -226,14 +233,15 @@
       legendAlign = 'center',
       centerLabel = 'Total spend',
       centerCompact = true,
-      showLegend = true
+      showLegend = true,
+      themeOverride = null
     } = options;
 
     const colors = getPalette(palette);
     const donutCenterText = {
       id: 'donutCenterText',
       beforeDraw(chart) {
-        const theme = getThemeColors();
+        const theme = getThemeColors(themeOverride);
         const meta = chart.getDatasetMeta(0).data[0];
         if (!meta) return;
 
@@ -267,7 +275,7 @@
         datasets: [{
           data,
           backgroundColor: colors.donut.slice(0, data.length),
-          borderColor: getThemeColors().donutBorder,
+          borderColor: getThemeColors(themeOverride).donutBorder,
           borderWidth: 2,
           hoverOffset: 6
         }]
@@ -287,7 +295,7 @@
               boxWidth: 7,
               boxHeight: 7,
               padding: 12,
-              color: getThemeColors().legend
+              color: getThemeColors(themeOverride).legend
             }
           },
           tooltip: {
@@ -311,6 +319,10 @@
   window.addEventListener('finly:themechange', () => {
     applyGlobalChartDefaults();
     chartRegistry.forEach((chart) => applyThemeToChart(chart));
+  });
+
+  window.addEventListener('finly:currencychange', () => {
+    chartRegistry.forEach((chart) => chart.update());
   });
 
   applyGlobalChartDefaults();

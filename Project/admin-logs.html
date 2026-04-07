@@ -33,7 +33,7 @@
   <script src="js/core/utils.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=20260406-2">
 </head>
 
 <body class="bg-[#FBFBFD] dark:bg-black admin-theme transition-colors duration-300">
@@ -97,6 +97,7 @@
       <div class="filter-caption">
         <strong>Trace operational events</strong>
         <span>Severity, action, dates</span>
+        <span id="logTimezoneLabel" class="chart-ui-muted text-xs font-semibold">Times shown in your local timezone</span>
       </div>
       <div class="filter-grid filter-grid-medium">
         <div class="filter-field">
@@ -113,12 +114,12 @@
           <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 ml-1">Action Type</label>
           <select id="actionFilter" class="apple-input text-sm font-bold cursor-pointer bg-white dark:bg-gray-800 border border-gray-100 dark:border-white/5">
             <option value="">All Actions</option>
-            <option value="USER_LOGIN">User Login</option>
-            <option value="CREATE_TRANSACTION">Create Transaction</option>
-            <option value="UPDATE_TRANSACTION">Update Transaction</option>
-            <option value="DELETE_TRANSACTION">Delete Transaction</option>
-            <option value="ADMIN_BLOCK_USER">Block User</option>
-            <option value="ADMIN_UNBLOCK_USER">Unblock User</option>
+            <option value="USER_LOGIN">User Sign-In</option>
+            <option value="CREATE_TRANSACTION">Transaction Created</option>
+            <option value="UPDATE_TRANSACTION">Transaction Updated</option>
+            <option value="DELETE_TRANSACTION">Transaction Deleted</option>
+            <option value="ADMIN_BLOCK_USER">User Blocked</option>
+            <option value="ADMIN_UNBLOCK_USER">User Unblocked</option>
           </select>
         </div>
 
@@ -187,7 +188,7 @@
 
     <h3 class="mb-4 font-bold text-gray-900 dark:text-white">Log Details</h3>
 
-    <pre id="logDetails" class="bg-gray-50 dark:bg-black/20 p-4 rounded-xl text-[11px] font-mono text-gray-600 dark:text-gray-400 overflow-auto border border-gray-100 dark:border-white/5"></pre>
+    <div id="logDetails" class="bg-gray-50 dark:bg-black/20 p-4 rounded-xl text-[11px] text-gray-600 dark:text-gray-400 overflow-auto border border-gray-100 dark:border-white/5"></div>
 
     <div class="flex justify-end mt-6">
       <button onclick="closeLogModal()" class="btn btn-secondary px-8">Close</button>
@@ -275,9 +276,12 @@ async function loadLogs(params = {}) {
     const res = await FinanceUtils.fetchWithAuth(`/logs/recent?${query}`);
     if (!res.success) throw new Error(res.error || 'Failed to load logs');
     logs = res.data.map(l => ({
-      time: l.timestamp ? new Date(l.timestamp).toLocaleString() : '',
-      user: l.user_id,
+      rawTimestamp: l.timestamp || l.created_at,
+      time: FinanceUtils.formatViewerTimestamp(l.timestamp || l.created_at),
+      user: l.user_name || l.user_email || (l.user_id ? `User #${l.user_id}` : 'System'),
+      userEmail: l.user_email || '',
       action: l.action_label || l.action,
+      summary: l.action_description || 'No additional details recorded',
       entity: l.entity_type,
       level: l.level,
       request_id: l.request_id,
@@ -331,6 +335,12 @@ function goToLogsPage(direction) {
   }
 }
 
+function getLevelBadge(level) {
+  if (level === 'WARNING') return 'badge-warning';
+  if (level === 'ERROR') return 'badge-danger';
+  return 'badge-success';
+}
+
 /* 🔷 RENDER TABLE */
 function renderLogs(data = logs) {
   const table = document.getElementById("logsTable");
@@ -348,13 +358,17 @@ function renderLogs(data = logs) {
     table.innerHTML += `
       <tr class="list-row group">
         <td class="p-6 text-[11px] font-bold text-gray-400 uppercase tracking-tight">${l.time}</td>
-        <td class="p-6 font-bold text-gray-900 dark:text-white">${l.user || 'System'}</td>
-        <td class="p-6 text-[11px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">${l.action}</td>
+        <td class="p-6">
+          <p class="font-bold text-gray-900 dark:text-white">${l.user || 'System'}</p>
+          <p class="text-[11px] text-gray-500 dark:text-gray-400 font-medium mt-1">${l.userEmail || (l.entity ? String(l.entity).replaceAll('_', ' ') : 'System event')}</p>
+        </td>
+        <td class="p-6">
+          <p class="text-[11px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">${l.action}</p>
+          <p class="text-sm text-gray-500 dark:text-gray-400 font-medium mt-2 leading-6">${l.summary}</p>
+        </td>
         <td class="p-6">
           <span class="badge ${
-            l.level === "INFO" ? "badge-success" :
-            l.level === "WARNING" ? "bg-amber-100 dark:bg-amber-900/20 text-amber-800 dark:text-amber-400" :
-            "badge-danger"
+            getLevelBadge(l.level)
           } text-[10px] uppercase font-black tracking-widest px-3">
             ${l.level}
           </span>
@@ -429,8 +443,46 @@ function resetFilters() {
 
 /* 🔷 VIEW DETAILS */
 function viewDetails(index) {
-  document.getElementById("logDetails").textContent =
-    JSON.stringify(logs[index].details, null, 2);
+  const log = logs[index];
+  const details = log.details || {};
+  const payload = details.payload || {};
+  const payloadEntries = Object.entries(payload);
+  document.getElementById("logDetails").innerHTML = `
+    <div class="space-y-4">
+      <div class="log-detail-card">
+        <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Activity</p>
+        <p class="text-base font-bold text-gray-900 dark:text-white">${log.action}</p>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mt-2 leading-6">${log.summary}</p>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="log-detail-card">
+          <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Actor</p>
+          <p class="font-bold text-gray-900 dark:text-white">${log.user || 'System'}</p>
+          <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">${log.userEmail || 'No email attached'}</p>
+        </div>
+        <div class="log-detail-card">
+          <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Metadata</p>
+          <p class="text-sm text-gray-700 dark:text-gray-300"><strong>Level:</strong> ${details.level || 'INFO'}</p>
+          <p class="text-sm text-gray-700 dark:text-gray-300 mt-1"><strong>Entity:</strong> ${details.entity_type || 'system'}</p>
+          <p class="text-sm text-gray-700 dark:text-gray-300 mt-1"><strong>Request ID:</strong> ${details.request_id || '-'}</p>
+          <p class="text-sm text-gray-700 dark:text-gray-300 mt-1"><strong>Time:</strong> ${log.time || '-'}</p>
+        </div>
+      </div>
+      <div class="log-detail-card">
+        <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Payload</p>
+        ${
+          payloadEntries.length
+            ? `<div class="space-y-2">${payloadEntries.map(([key, value]) => `
+                <div class="flex flex-col gap-1 border-b border-gray-100 dark:border-white/5 pb-2 last:border-b-0 last:pb-0">
+                  <span class="text-[10px] font-bold uppercase tracking-widest text-gray-400">${key.replaceAll('_', ' ')}</span>
+                  <span class="text-sm text-gray-700 dark:text-gray-300 break-words">${typeof value === 'object' ? JSON.stringify(value) : String(value)}</span>
+                </div>
+              `).join('')}</div>`
+            : '<p class="text-sm text-gray-500 dark:text-gray-400">No extra payload was recorded for this activity.</p>'
+        }
+      </div>
+    </div>
+  `;
   FinanceUtils.openModal('logModal');
 }
 
@@ -454,6 +506,22 @@ document.getElementById('logsPageSize').addEventListener('change', function(e) {
   logsPagination.limit = parseInt(e.target.value, 10);
   logsPagination.offset = 0;
   loadLogs(getLogServerParamsFromState());
+});
+
+const timezoneLabel = document.getElementById('logTimezoneLabel');
+if (timezoneLabel) {
+  timezoneLabel.textContent = `Times shown in your timezone: ${FinanceUtils.getCurrentTimeZoneLabel()}`;
+}
+
+window.addEventListener('finly:localechange', () => {
+  logs = logs.map((log) => ({
+    ...log,
+    time: FinanceUtils.formatViewerTimestamp(log.rawTimestamp)
+  }));
+  if (timezoneLabel) {
+    timezoneLabel.textContent = `Times shown in your timezone: ${FinanceUtils.getCurrentTimeZoneLabel()}`;
+  }
+  renderLogs(logs);
 });
 </script>
 

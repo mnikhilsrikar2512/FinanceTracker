@@ -35,10 +35,10 @@
 
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=20260406-1">
 </head>
 
-<body class="bg-[#FBFBFD] dark:bg-black transition-colors duration-300">
+<body class="dashboard-page bg-[#FBFBFD] dark:bg-black transition-colors duration-300">
 
 <!-- Sidebar -->
 <div class="sidebar" id="sidebar">
@@ -226,18 +226,18 @@ function getDateRange(period) {
   switch(period) {
     case 'this_month':
       return {
-        startDate: startOfMonth.toISOString().split('T')[0],
-        endDate: endOfMonth.toISOString().split('T')[0]
+        startDate: FinanceUtils.getLocalDateInputValue(startOfMonth),
+        endDate: FinanceUtils.getLocalDateInputValue(endOfMonth)
       };
     case 'last_month':
       return {
-        startDate: startOfLastMonth.toISOString().split('T')[0],
-        endDate: endOfLastMonth.toISOString().split('T')[0]
+        startDate: FinanceUtils.getLocalDateInputValue(startOfLastMonth),
+        endDate: FinanceUtils.getLocalDateInputValue(endOfLastMonth)
       };
     case 'last_3_months':
       return {
-        startDate: startOf3MonthsAgo.toISOString().split('T')[0],
-        endDate: endOfMonth.toISOString().split('T')[0]
+        startDate: FinanceUtils.getLocalDateInputValue(startOf3MonthsAgo),
+        endDate: FinanceUtils.getLocalDateInputValue(endOfMonth)
       };
     default:
       return { startDate: null, endDate: null };
@@ -250,8 +250,8 @@ function getPreviousPeriodRange(period) {
     return { startDate: null, endDate: null };
   }
   
-  const currentStart = new Date(currentRange.startDate);
-  const currentEnd = new Date(currentRange.endDate);
+  const currentStart = new Date(`${currentRange.startDate}T00:00:00`);
+  const currentEnd = new Date(`${currentRange.endDate}T00:00:00`);
   const durationDays = (currentEnd - currentStart) / (1000 * 60 * 60 * 24);
   
   const previousEnd = new Date(currentStart);
@@ -260,8 +260,8 @@ function getPreviousPeriodRange(period) {
   previousStart.setDate(previousStart.getDate() - durationDays);
   
   return {
-    startDate: previousStart.toISOString().split('T')[0],
-    endDate: previousEnd.toISOString().split('T')[0]
+    startDate: FinanceUtils.getLocalDateInputValue(previousStart),
+    endDate: FinanceUtils.getLocalDateInputValue(previousEnd)
   };
 }
 
@@ -458,23 +458,40 @@ function renderBudgetHealthCallout(summaryData, categoryMap = {}, hasError = fal
     return;
   }
 
-  const overBudget = summaryData.filter((item) => item.is_over_budget);
-  const nearLimit = summaryData.filter((item) => !item.is_over_budget && item.percentage_used >= 85);
-  const healthy = summaryData.length - overBudget.length - nearLimit.length;
-  const highlightItems = [...overBudget, ...nearLimit].slice(0, 2).map((item) => categoryMap[item.category_id] || 'Uncategorized');
+  const grouped = {
+    comfortable: summaryData.filter((item) => !item.is_over_budget && item.percentage_used < 50),
+    watch: summaryData.filter((item) => !item.is_over_budget && item.percentage_used >= 50 && item.percentage_used < 75),
+    caution: summaryData.filter((item) => !item.is_over_budget && item.percentage_used >= 75 && item.percentage_used < 100),
+    limit: summaryData.filter((item) => !item.is_over_budget && item.percentage_used >= 100),
+    overBudget: summaryData.filter((item) => item.is_over_budget)
+  };
+  const highlightItems = [
+    ...grouped.overBudget,
+    ...grouped.limit,
+    ...grouped.caution,
+    ...grouped.watch
+  ].slice(0, 2).map((item) => categoryMap[item.category_id] || 'Uncategorized');
 
   let title = 'All budgets are in a healthy range';
-  let message = `${healthy} ${healthy === 1 ? 'category is' : 'categories are'} pacing safely against plan.`;
+  let message = `${grouped.comfortable.length} ${grouped.comfortable.length === 1 ? 'category is' : 'categories are'} comfortably below the halfway mark.`;
   let actionLabel = 'Review Budgets';
 
-  if (overBudget.length > 0) {
-    title = `${overBudget.length} ${overBudget.length === 1 ? 'category is' : 'categories are'} over budget`;
+  if (grouped.overBudget.length > 0) {
+    title = `${grouped.overBudget.length} ${grouped.overBudget.length === 1 ? 'category is' : 'categories are'} over budget`;
     message = `${highlightItems.join(' and ') || 'A few categories'} need attention now.`;
     actionLabel = 'Review Overages';
-  } else if (nearLimit.length > 0) {
-    title = `${nearLimit.length} ${nearLimit.length === 1 ? 'category is' : 'categories are'} near the limit`;
+  } else if (grouped.limit.length > 0) {
+    title = `${grouped.limit.length} ${grouped.limit.length === 1 ? 'category has reached' : 'categories have reached'} the limit`;
+    message = `${highlightItems.join(' and ') || 'A few categories'} have fully used the planned budget.`;
+    actionLabel = 'Review Limits';
+  } else if (grouped.caution.length > 0) {
+    title = `${grouped.caution.length} ${grouped.caution.length === 1 ? 'category is' : 'categories are'} above 75%`;
     message = `${highlightItems.join(' and ') || 'A few categories'} are getting close to the cap.`;
     actionLabel = 'Check Budgets';
+  } else if (grouped.watch.length > 0) {
+    title = `${grouped.watch.length} ${grouped.watch.length === 1 ? 'category has crossed' : 'categories have crossed'} 50%`;
+    message = `${highlightItems.join(' and ') || 'A few categories'} are now in the watch zone.`;
+    actionLabel = 'Review Watchlist';
   }
 
   container.innerHTML = `
@@ -486,8 +503,10 @@ function renderBudgetHealthCallout(summaryData, categoryMap = {}, hasError = fal
       </div>
       <div class="flex flex-wrap gap-2">
         <span class="context-chip context-chip-user">${summaryData.length} active budgets</span>
-        ${overBudget.length ? `<span class="context-chip context-chip-admin">${overBudget.length} over budget</span>` : ''}
-        ${nearLimit.length ? `<span class="context-chip context-chip-user">${nearLimit.length} near limit</span>` : ''}
+        ${grouped.watch.length ? `<span class="context-chip context-chip-user">${grouped.watch.length} above 50%</span>` : ''}
+        ${grouped.caution.length ? `<span class="context-chip context-chip-user">${grouped.caution.length} above 75%</span>` : ''}
+        ${grouped.limit.length ? `<span class="context-chip context-chip-admin">${grouped.limit.length} at 100%</span>` : ''}
+        ${grouped.overBudget.length ? `<span class="context-chip context-chip-admin">${grouped.overBudget.length} over budget</span>` : ''}
         <a href="budgets.html" class="btn btn-secondary">${actionLabel}</a>
       </div>
     </div>
@@ -575,6 +594,15 @@ if (periodFilter) {
 // Init
 loadUserData();
 loadDashboard();
+
+window.addEventListener('finly:currencychange', () => {
+  loadDashboard(periodFilter?.value || 'this_month');
+});
+
+window.addEventListener('finly:localechange', () => {
+  loadUserData();
+  loadDashboard(periodFilter?.value || 'this_month');
+});
 </script>
 
 </body>

@@ -34,7 +34,7 @@
   <link rel="stylesheet" href="styles.css?v=20260402-landing">
 </head>
 
-<body class="bg-[#FBFBFD] dark:bg-[#000000] min-h-screen flex items-center justify-center p-6 transition-colors duration-300">
+<body data-page="login" class="bg-[#FBFBFD] dark:bg-[#000000] min-h-screen flex items-center justify-center p-6 transition-colors duration-300">
   <div class="auth-panel">
     <div class="text-center mb-8">
       <div class="auth-brand-badge mb-6">Finly</div>
@@ -99,102 +99,6 @@
   </div>
 
   <script src="js/core/utils.js?v=20260403-auth-security"></script>
-  <script>
-    const existingToken = localStorage.getItem("token");
-    if (existingToken) {
-      FinanceUtils.getCurrentUser()
-        .then((user) => {
-          if (user?.role === 'admin') window.location.href = 'admin.html';
-          else if (user) window.location.href = 'app.html';
-        })
-        .catch(() => {});
-    }
-
-    const form = document.getElementById("loginForm");
-    const noticeBox = document.getElementById("noticeBox");
-    const errorBox = document.getElementById("errorBox");
-    const loginBtn = document.getElementById("loginBtn");
-    const authNotice = sessionStorage.getItem("finly_auth_notice");
-
-    if (authNotice) {
-      noticeBox.innerText = authNotice;
-      noticeBox.classList.remove("hidden");
-      sessionStorage.removeItem("finly_auth_notice");
-    }
-
-    const validationRules = {
-      email: [
-        { required: true, message: 'Email is required' },
-        { email: true, message: 'Please enter a valid email address' }
-      ],
-      password: [
-        { required: true, message: 'Password is required' }
-      ]
-    };
-
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      FinanceUtils.clearFormErrors(form);
-
-      const validation = FinanceUtils.validateForm(form, validationRules);
-      if (!validation.isValid) {
-        FinanceUtils.showFormErrors(form, validation.errors);
-        return;
-      }
-
-      loginBtn.innerText = "Logging in...";
-      loginBtn.disabled = true;
-      errorBox.classList.add("hidden");
-      noticeBox.classList.add("hidden");
-
-      const email = FinanceUtils.normalizeEmail(document.getElementById("email").value);
-      document.getElementById("email").value = email;
-      const password = document.getElementById("password").value;
-
-      try {
-        const data = await FinanceUtils.fetchPublic('/auth/login', {
-          method: "POST",
-          body: JSON.stringify({ email, password })
-        });
-
-        localStorage.setItem("token", data.data.access_token);
-        const user = data.data?.user || null;
-        if (user?.role) {
-          localStorage.setItem("finance_user_role", user.role);
-        }
-        FinanceUtils.showToast('Login successful!', 'success');
-
-        setTimeout(() => {
-          window.location.href = user?.role === 'admin' ? "admin.html" : "app.html";
-        }, 350);
-      } catch (err) {
-        FinanceUtils.showToast(err.message, 'error');
-        errorBox.innerText = err.message;
-        errorBox.classList.remove("hidden");
-      } finally {
-        loginBtn.innerText = "Sign In";
-        loginBtn.disabled = false;
-      }
-    });
-
-    form.querySelectorAll('input').forEach(input => {
-      input.addEventListener('blur', () => {
-        if (input.type === 'email') {
-          input.value = FinanceUtils.normalizeEmail(input.value);
-        }
-        const fieldName = input.name;
-        if (validationRules[fieldName]) {
-          const validation = FinanceUtils.validateForm(form, { [fieldName]: validationRules[fieldName] });
-          if (!validation.isValid) {
-            FinanceUtils.showFormErrors(form, validation.errors);
-          } else {
-            const errorDiv = input.parentNode.querySelector('.error-message');
-            if (errorDiv) errorDiv.remove();
-            input.classList.remove('border-red-500');
-          }
-        }
-      });
-    });
-  </script>
+  <script src="js/pages/auth-pages.js?v=20260406-maint"></script>
 </body>
 </html>

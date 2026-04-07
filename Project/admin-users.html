@@ -313,7 +313,7 @@ async function viewUser(id) {
     document.getElementById('detRole').className = u.role === 'admin'
       ? 'context-chip context-chip-admin w-fit'
       : 'context-chip context-chip-user w-fit';
-    document.getElementById('detCreated').textContent = new Date(u.created_at).toLocaleDateString('en-US', { dateStyle: 'long' });
+    document.getElementById('detCreated').textContent = FinanceUtils.formatDate(u.created_at, 'long');
     document.getElementById('detId').textContent = `#${u.id}`;
     
     const badge = document.getElementById('detStatusBadge');

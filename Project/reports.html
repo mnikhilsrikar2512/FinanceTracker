@@ -30,13 +30,13 @@
     }
   </script>
   <!-- Utility Script -->
-  <script src="js/core/utils.js?v=20260403-1"></script>
+  <script src="js/core/utils.js?v=20260407-2"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=20260407-1">
 </head>
 
 <body data-shell="auto" class="analytics-page bg-[#FBFBFD] dark:bg-black transition-colors duration-300">
@@ -81,25 +81,44 @@
 
   <main class="mt-8">
     <div class="apple-card analytics-toolbar filter-surface mb-8">
-      <div class="filter-caption">
-        <strong>Choose the reporting window</strong>
-        <span>Updates without reload</span>
+      <div class="filter-caption reports-filter-caption">
+        <div>
+          <strong>Report controls</strong>
+          <span>Set the date range and display currency for this report.</span>
+        </div>
+        <span class="reports-filter-live-note">Live updates</span>
       </div>
-      <div class="filter-grid filter-grid-compact">
-        <div class="filter-field">
-          <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 ml-1">From</label>
-          <input type="date" id="startDate" class="apple-input chart-control text-sm w-44 font-bold">
+      <div class="reports-filter-row">
+        <div class="reports-filter-group reports-filter-group-window">
+          <p class="reports-filter-group-label">Date range</p>
+          <div class="reports-filter-inline">
+            <div class="filter-field">
+              <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 ml-1">From</label>
+              <input type="date" id="startDate" class="apple-input chart-control text-sm font-bold">
+            </div>
+            <div class="filter-field">
+              <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 ml-1">To</label>
+              <input type="date" id="endDate" class="apple-input chart-control text-sm font-bold">
+            </div>
+          </div>
         </div>
-        <div class="filter-field">
-          <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 ml-1">To</label>
-          <input type="date" id="endDate" class="apple-input chart-control text-sm w-44 font-bold">
+        <div class="reports-filter-group reports-filter-group-currency">
+          <p class="reports-filter-group-label">Currency</p>
+          <div class="filter-field reports-filter-currency-field">
+            <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 ml-1">Display currency</label>
+            <select id="reportCurrency" class="apple-input chart-control text-sm font-bold" aria-label="Choose report display currency"></select>
+          </div>
         </div>
-        <div class="filter-actions analytics-toolbar-actions">
-          <button onclick="applyDateFilter()" class="btn btn-primary px-6 text-sm">Apply</button>
+        <div class="filter-actions analytics-toolbar-actions reports-filter-actions" aria-label="Report actions">
+          <button onclick="applyDateFilter()" class="btn btn-primary px-6 text-sm">Apply filters</button>
           <button onclick="resetDateFilter()" class="btn btn-secondary px-4 text-sm">Reset</button>
-          <button onclick="downloadReport('csv')" class="btn btn-secondary px-4 text-sm">CSV</button>
-          <button onclick="downloadReport('pdf')" class="btn btn-secondary px-4 text-sm">PDF</button>
+          <button onclick="downloadReport('csv')" class="btn btn-secondary px-4 text-sm">Export CSV</button>
+          <button onclick="downloadReport('pdf')" class="btn btn-secondary px-4 text-sm">Export PDF</button>
         </div>
+      </div>
+      <div class="reports-filter-meta">
+        <p id="reportCurrencyContext" class="reports-filter-context">Values shown in your app currency.</p>
+        <p id="reportExportContext" class="reports-filter-export-note">Downloads include currency context</p>
       </div>
     </div>
 
@@ -243,6 +262,7 @@
             <div>
               <h4 id="monthlyTableHeading" class="text-sm font-bold text-gray-900 dark:text-white">Monthly Snapshot</h4>
               <p id="monthlyTableDescription" class="text-[11px] text-gray-500 dark:text-gray-400 font-medium mt-1">A compact view of income, expense, and net movement.</p>
+              <p id="monthlyTableCoverageNote" class="text-[10px] text-gray-400 dark:text-gray-500 font-semibold mt-2 hidden"></p>
             </div>
             <span id="monthlyTableMetaLabel" class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Recent Months</span>
           </div>
@@ -258,9 +278,9 @@
 
 <script src="js/layout/sidebar.js"></script>
 <script src="js/layout/header-actions.js"></script>
-<script src="js/visuals/charts.js?v=20260403-1"></script>
+<script src="js/visuals/charts.js?v=20260406-2"></script>
 <script src="js/pages/shared-shell.js"></script>
-<script src="js/pages/reports.js?v=20260403-4"></script>
+<script src="js/pages/reports.js?v=20260407-2"></script>
 
 </body>
 </html>

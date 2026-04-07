@@ -35,7 +35,7 @@
 
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=20260406-1">
 </head>
 
 <body class="bg-[#FBFBFD] dark:bg-black admin-theme transition-colors duration-300">
@@ -108,7 +108,7 @@
             <h3 class="text-lg font-bold text-gray-900 dark:text-white">User Directory</h3>
             <div class="relative">
               <svg class="w-4 h-4 absolute left-4 top-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-              <input id="userQuickSearch" placeholder="Filter by email..." class="apple-input pl-11 w-72 text-sm font-bold bg-white dark:bg-gray-800 border border-gray-100 dark:border-white/5">
+              <input id="userQuickSearch" placeholder="Search name or email..." class="apple-input pl-11 w-72 text-sm font-bold bg-white dark:bg-gray-800 border border-gray-100 dark:border-white/5">
             </div>
           </div>
           
@@ -198,11 +198,14 @@ async function loadDashboardStats() {
 }
 
 /* 🔷 LOAD RECENT USERS */
-async function loadRecentUsers() {
+async function loadRecentUsers(searchTerm = '') {
   const table = document.getElementById("usersTable");
   table.innerHTML = FinanceUtils.createSkeleton(5);
   try {
-    const res = await FinanceUtils.fetchWithAuth('/admin/users?limit=5');
+    const params = new URLSearchParams({ limit: '5' });
+    const normalizedTerm = searchTerm.trim();
+    if (normalizedTerm) params.set('search', normalizedTerm);
+    const res = await FinanceUtils.fetchWithAuth(`/admin/users?${params.toString()}`);
     if (!res.success) throw new Error(res.error || 'Failed to load users');
     recentUsersData = res.data.map(u => ({
       id: u.id,
@@ -295,14 +298,17 @@ async function loadRecentLogs() {
     }
 
     res.data.forEach(log => {
-      const date = new Date(log.timestamp || log.created_at).toLocaleString();
+      const date = FinanceUtils.formatViewerTimestamp(log.timestamp || log.created_at);
+      const actor = log.user_name || log.user_email || 'System';
+      const summary = log.action_description || 'No additional details recorded';
       logsList.innerHTML += `
         <div class="list-row p-4 rounded-xl flex justify-between items-center group">
-          <div>
+          <div class="min-w-0 pr-4">
             <p class="text-xs font-bold text-gray-900 dark:text-white uppercase tracking-tight">${log.action_label || log.action}</p>
-            <p class="text-[10px] text-gray-400 font-bold uppercase mt-0.5">${log.user_email || 'System'}</p>
+            <p class="text-[10px] text-gray-400 font-bold uppercase mt-0.5">${actor}</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate">${summary}</p>
           </div>
-          <span class="text-[10px] text-gray-400 font-bold">${date}</span>
+          <span class="text-[10px] text-gray-400 font-bold text-right shrink-0">${date}</span>
         </div>
       `;
     });
@@ -318,16 +324,26 @@ function initChart() {
   const ctx = document.getElementById('adminChart');
   if (!ctx) return;
   const theme = getAdminChartTheme();
+  const segments = [
+    { label: 'Active Users', value: dashboardStats.active_users || 0, color: '#10b981' },
+    { label: 'Blocked Users', value: dashboardStats.blocked_users || 0, color: '#ef4444' },
+    { label: 'Admins', value: dashboardStats.admin_users || 0, color: '#3b82f6' },
+    { label: 'Other Users', value: dashboardStats.other_users || 0, color: '#f59e0b' }
+  ].filter(segment => segment.value > 0);
+  const chartSegments = segments.length
+    ? segments
+    : [{ label: 'No users yet', value: 1, color: isDarkModeEnabled() ? '#374151' : '#d1d5db' }];
+  const total = chartSegments.reduce((sum, segment) => sum + segment.value, 0);
 
   if (adminChartInstance) adminChartInstance.destroy();
 
   adminChartInstance = new Chart(ctx, {
     type: 'doughnut',
     data: {
-      labels: ['Active Users', 'Blocked Users', 'Admins'],
+      labels: chartSegments.map(segment => segment.label),
       datasets: [{
-        data: [dashboardStats.active_users, dashboardStats.blocked_users, dashboardStats.admin_users || 1],
-        backgroundColor: ['#10b981', '#ef4444', '#3b82f6'],
+        data: chartSegments.map(segment => segment.value),
+        backgroundColor: chartSegments.map(segment => segment.color),
         borderWidth: 2,
         borderColor: theme.border
       }]
@@ -361,7 +377,9 @@ function initChart() {
           padding: 12,
           callbacks: {
             label(context) {
-              return `${context.label}: ${context.raw}`;
+              const value = Number(context.raw || 0);
+              const percentage = total ? Math.round((value / total) * 100) : 0;
+              return `${context.label}: ${value} (${percentage}%)`;
             }
           }
         }
@@ -383,13 +401,24 @@ function initChart() {
     
     const quickSearch = document.getElementById('userQuickSearch');
     if (quickSearch) {
-      quickSearch.addEventListener('input', (e) => renderUsersTable(e.target.value));
+      let searchTimer;
+      quickSearch.addEventListener('input', (e) => {
+        const value = e.target.value || '';
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => {
+          loadRecentUsers(value);
+        }, 220);
+      });
     }
   }
 })();
 
 window.addEventListener('finly:themechange', () => {
   initChart();
+});
+
+window.addEventListener('finly:localechange', () => {
+  loadRecentLogs();
 });
 </script>
 

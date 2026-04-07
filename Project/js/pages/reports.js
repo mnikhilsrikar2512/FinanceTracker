@@ -8,6 +8,7 @@ let pieChart;
 let reportsView = 'user';
 let adminAnalyticsCacheKey = null;
 let adminAnalyticsCachePromise = null;
+const REPORT_CURRENCY_APP_VALUE = '__app__';
 let reportState = {
   insights: null,
   monthly: [],
@@ -17,32 +18,60 @@ let reportState = {
 };
 
 function getReportDateStamp() {
-  return new Date().toISOString().split('T')[0];
+  return FinanceUtils.getLocalDateInputValue(new Date());
 }
 
 function getCurrentRangeLabel() {
   return document.getElementById('trendRangeLabel')?.textContent || 'All time';
 }
 
+function formatPeriodLabel(periodKey) {
+  const [year, month] = String(periodKey || '').split('-');
+  const parsedYear = Number(year);
+  const parsedMonth = Number(month);
+  if (!parsedYear || !parsedMonth) return String(periodKey || '');
+  return new Intl.DateTimeFormat(FinanceUtils.getCurrentLocale(), {
+    month: 'short',
+    year: 'numeric'
+  }).format(new Date(parsedYear, parsedMonth - 1, 1));
+}
+
+function getEffectiveReportCurrency() {
+  return FinanceUtils.getCurrencyDisplayOverride?.() || FinanceUtils.getPreferredCurrency();
+}
+
+function getCurrencyContextLabel() {
+  const currency = getEffectiveReportCurrency();
+  const isOverride = Boolean(FinanceUtils.getCurrencyDisplayOverride?.());
+  return {
+    currency,
+    mode: isOverride ? 'Report override' : 'App currency',
+    detail: `Values shown in ${currency} using ${isOverride ? 'this report override' : 'your app currency'}. Base values convert from INR using demo rates.`
+  };
+}
+
 function getRoleReportMeta() {
+  const currency = getEffectiveReportCurrency().toLowerCase();
   return reportsView === 'admin'
     ? {
         title: 'System Analytics Report',
-        csvFilename: `system_analytics_report_${getReportDateStamp()}.csv`,
-        pdfFilename: `system_analytics_report_${getReportDateStamp()}.pdf`
+        csvFilename: `system_analytics_report_${currency}_${getReportDateStamp()}.csv`,
+        pdfFilename: `system_analytics_report_${currency}_${getReportDateStamp()}.pdf`
       }
     : {
         title: 'Personal Finance Report',
-        csvFilename: `personal_finance_report_${getReportDateStamp()}.csv`,
-        pdfFilename: `personal_finance_report_${getReportDateStamp()}.pdf`
+        csvFilename: `personal_finance_report_${currency}_${getReportDateStamp()}.csv`,
+        pdfFilename: `personal_finance_report_${currency}_${getReportDateStamp()}.pdf`
       };
 }
 
 function formatCurrencyPdf(value) {
-  return new Intl.NumberFormat('en-IN', {
+  const preferredCurrency = getEffectiveReportCurrency();
+  const converted = FinanceUtils.convertCurrency(value || 0, 'INR', preferredCurrency);
+  return new Intl.NumberFormat(FinanceUtils.getCurrentLocale(), {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0
-  }).format(value || 0).replace(/\u00A0/g, ' ');
+  }).format(converted).replace(/\u00A0/g, ' ');
 }
 
 function pdfSafeText(value) {
@@ -74,6 +103,7 @@ function setAdminCopy(isAdmin) {
   const monthlyTableHeading = document.getElementById('monthlyTableHeading');
   const monthlyTableDescription = document.getElementById('monthlyTableDescription');
   const monthlyTableMetaLabel = document.getElementById('monthlyTableMetaLabel');
+  const monthlyTableCoverageNote = document.getElementById('monthlyTableCoverageNote');
 
   if (subtitle) {
     subtitle.textContent = isAdmin
@@ -128,15 +158,56 @@ function setAdminCopy(isAdmin) {
     categoryTableHeading.textContent = isAdmin ? 'System Spend Leaders' : 'Top Spending Categories';
   }
   if (monthlyTableHeading) {
-    monthlyTableHeading.textContent = isAdmin ? 'All User Transaction Summary' : 'Monthly Snapshot';
+    monthlyTableHeading.textContent = isAdmin ? 'Top Active Users' : 'Monthly Snapshot';
   }
   if (monthlyTableDescription) {
     monthlyTableDescription.textContent = isAdmin
-      ? 'A user-by-user breakdown of transaction activity in the selected range.'
+      ? 'A ranked view of the busiest users in the selected range.'
       : 'A compact view of income, expense, and net movement.';
   }
   if (monthlyTableMetaLabel) {
     monthlyTableMetaLabel.textContent = isAdmin ? 'All Users' : 'Recent Months';
+  }
+  if (monthlyTableCoverageNote && !isAdmin) {
+    monthlyTableCoverageNote.classList.add('hidden');
+    monthlyTableCoverageNote.textContent = '';
+  }
+}
+
+function initReportCurrencySelector() {
+  const select = document.getElementById('reportCurrency');
+  if (!select) return;
+  const appCurrency = FinanceUtils.getPreferredCurrency();
+  const options = [
+    `<option value="${REPORT_CURRENCY_APP_VALUE}">Use app currency (${appCurrency})</option>`,
+    ...FinanceUtils.getSupportedCurrencies().map((currency) => `<option value="${currency.code}">${currency.label}</option>`)
+  ];
+  select.innerHTML = options.join('');
+  const override = FinanceUtils.getCurrencyDisplayOverride?.();
+  select.value = override || REPORT_CURRENCY_APP_VALUE;
+  if (select.dataset.currencyBound === 'true') return;
+  select.addEventListener('change', (event) => {
+    const value = event.target.value;
+    if (value === REPORT_CURRENCY_APP_VALUE) {
+      FinanceUtils.clearCurrencyDisplayOverride();
+    } else {
+      FinanceUtils.setCurrencyDisplayOverride(value);
+    }
+    syncReportCurrencyContext();
+  });
+  select.dataset.currencyBound = 'true';
+}
+
+function syncReportCurrencyContext() {
+  initReportCurrencySelector();
+  const context = getCurrencyContextLabel();
+  const note = document.getElementById('reportCurrencyContext');
+  const exportNote = document.getElementById('reportExportContext');
+  if (note) {
+    note.textContent = context.detail;
+  }
+  if (exportNote) {
+    exportNote.textContent = `${context.mode.toUpperCase()} • ${context.currency} • exports include this context`;
   }
 }
 
@@ -153,11 +224,7 @@ function updateTrendRangeLabel() {
   const endDate = document.getElementById('endDate').value;
   const label = document.getElementById('trendRangeLabel');
   if (!label) return;
-  const formatDate = (value) => new Intl.DateTimeFormat('en-IN', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric'
-  }).format(new Date(value));
+  const formatDate = (value) => FinanceUtils.formatDate(value, 'short');
 
   if (startDate && endDate) {
     label.textContent = `${formatDate(startDate)} to ${formatDate(endDate)}`;
@@ -175,8 +242,8 @@ function buildDateParams() {
   const endDate = document.getElementById('endDate').value;
   const params = {};
 
-  if (startDate) params.start_date = new Date(startDate).toISOString();
-  if (endDate) params.end_date = new Date(endDate).toISOString();
+  if (startDate) params.start_date = FinanceUtils.formatDateForApi(startDate);
+  if (endDate) params.end_date = FinanceUtils.formatDateForApi(endDate, true);
 
   return params;
 }
@@ -468,6 +535,17 @@ function buildMonthlyNetSummary(monthlyData = []) {
   })).sort((a, b) => a.key.localeCompare(b.key));
 }
 
+function getRankedUserSummary(limit = null) {
+  const users = [...(reportState.userSummary || [])].sort((a, b) => {
+    const txnDelta = (b.transaction_count || 0) - (a.transaction_count || 0);
+    if (txnDelta !== 0) return txnDelta;
+    const netDelta = (b.net_total || 0) - (a.net_total || 0);
+    if (netDelta !== 0) return netDelta;
+    return String(a.name || '').localeCompare(String(b.name || ''));
+  });
+  return typeof limit === 'number' ? users.slice(0, limit) : users;
+}
+
 function renderMonthlyTable() {
   const rowsNode = document.getElementById('monthlyTableRows');
   const emptyNode = document.getElementById('monthlyTableEmpty');
@@ -493,7 +571,7 @@ function renderMonthlyTable() {
     return `
       <div class="px-6 py-4 flex items-center justify-between gap-4">
         <div class="min-w-0">
-          <p class="text-sm font-bold text-gray-900 dark:text-white">${item.key}</p>
+          <p class="text-sm font-bold text-gray-900 dark:text-white">${formatPeriodLabel(item.key)}</p>
           <p class="text-[11px] text-gray-500 dark:text-gray-400 font-medium">
             Income ${FinanceUtils.formatCurrency(item.income)} • Expense ${FinanceUtils.formatCurrency(item.expense)}
           </p>
@@ -512,13 +590,40 @@ function renderUserSummaryTable() {
   const emptyNode = document.getElementById('monthlyTableEmpty');
   if (!rowsNode || !emptyNode) return;
 
-  const users = reportState.userSummary || [];
+  const allUsers = getRankedUserSummary();
+  const users = getRankedUserSummary(6);
+  const metaLabel = document.getElementById('monthlyTableMetaLabel');
+  const description = document.getElementById('monthlyTableDescription');
+  const coverageNote = document.getElementById('monthlyTableCoverageNote');
   if (!users.length) {
     rowsNode.classList.add('hidden');
     rowsNode.innerHTML = '';
     emptyNode.classList.remove('hidden');
     emptyNode.textContent = 'No user transaction activity is available in this range yet.';
+    if (metaLabel) metaLabel.textContent = 'No Active Users';
+    if (description) description.textContent = 'No users recorded transactions in the selected range.';
+    if (coverageNote) {
+      coverageNote.classList.add('hidden');
+      coverageNote.textContent = '';
+    }
     return;
+  }
+
+  if (metaLabel) {
+    metaLabel.textContent = allUsers.length > users.length
+      ? `Top ${users.length} of ${allUsers.length}`
+      : `${users.length} Active Users`;
+  }
+  if (description) {
+    description.textContent = allUsers.length > users.length
+      ? 'A ranked view of the busiest users in the selected range, ordered by transaction activity.'
+      : 'A user-by-user breakdown of transaction activity in the selected range.';
+  }
+  if (coverageNote) {
+    coverageNote.classList.remove('hidden');
+    coverageNote.textContent = allUsers.length > users.length
+      ? `On-screen view shows the top ${users.length} users. Downloads include the top 10 active users for readability.`
+      : 'This view includes every active user in the selected range.';
   }
 
   rowsNode.classList.remove('hidden');
@@ -570,7 +675,7 @@ function renderHighlights() {
     const total = userCounts.total || 0;
     const blocked = userCounts.blocked || 0;
     one.textContent = total ? `${active}/${total} users active` : 'No user data';
-    two.textContent = bestMonth ? `${bestMonth.key} • ${FinanceUtils.formatCurrency(bestMonth.net)}` : 'No monthly peak yet';
+    two.textContent = bestMonth ? `${formatPeriodLabel(bestMonth.key)} • ${FinanceUtils.formatCurrency(bestMonth.net)}` : 'No monthly peak yet';
     three.textContent = blocked ? `${blocked} blocked user${blocked === 1 ? '' : 's'} need attention` : 'No blocked-user alerts right now';
     return;
   }
@@ -579,7 +684,7 @@ function renderHighlights() {
     ? Math.round((topCategory.amount / totalCategorySpend) * 100)
     : 0;
   one.textContent = topCategory ? `${topCategory.category} • ${share}% of spend` : 'No category leader yet';
-  two.textContent = bestMonth ? `${bestMonth.key} • ${FinanceUtils.formatCurrency(bestMonth.net)}` : 'No monthly peak yet';
+  two.textContent = bestMonth ? `${formatPeriodLabel(bestMonth.key)} • ${FinanceUtils.formatCurrency(bestMonth.net)}` : 'No monthly peak yet';
   const income = insights.total_income || 0;
   const expense = insights.total_expense || 0;
   three.textContent = income
@@ -597,12 +702,55 @@ function triggerBlobDownload(blob, filename) {
   URL.revokeObjectURL(link.href);
 }
 
-function createReportCsvContent() {
-  const meta = getRoleReportMeta();
+function buildReportTakeaways() {
   const insights = reportState.insights || {};
   const categories = reportState.categories || [];
   const monthlyNet = buildMonthlyNetSummary(reportState.monthly || []);
-  const userSummary = reportState.userSummary || [];
+  const topCategory = categories[0];
+  const latestMonth = monthlyNet[monthlyNet.length - 1];
+  const takeaways = [];
+
+  if (reportsView === 'admin') {
+    const activeUsers = reportState.userSummary?.length || 0;
+    if (topCategory) {
+      takeaways.push(`${topCategory.category} is driving the highest system spend at ${FinanceUtils.formatCurrency(topCategory.amount)} in this range.`);
+    }
+    if (latestMonth) {
+      takeaways.push(`${formatPeriodLabel(latestMonth.key)} closed with a net position of ${FinanceUtils.formatCurrency(latestMonth.net)}, based on ${FinanceUtils.formatCurrency(latestMonth.income)} in inflow and ${FinanceUtils.formatCurrency(latestMonth.expense)} in outflow.`);
+    }
+    if (activeUsers) {
+      takeaways.push(`${activeUsers} users recorded transactions in this range, which gives a clear view of platform-wide behavior.`);
+    }
+    if ((insights.user_counts?.blocked || 0) > 0) {
+      takeaways.push(`${insights.user_counts.blocked} blocked user${insights.user_counts.blocked === 1 ? '' : 's'} still need review from the admin side.`);
+    }
+  } else {
+    if (topCategory) {
+      takeaways.push(`${topCategory.category} is the biggest spending category at ${FinanceUtils.formatCurrency(topCategory.amount)} in this range.`);
+    }
+    if (latestMonth) {
+      takeaways.push(`${formatPeriodLabel(latestMonth.key)} ended with a net result of ${FinanceUtils.formatCurrency(latestMonth.net)} after ${FinanceUtils.formatCurrency(latestMonth.expense)} in expenses.`);
+    }
+    if ((insights.total_income || 0) > 0) {
+      const spendRatio = Math.round(((insights.total_expense || 0) / (insights.total_income || 1)) * 100);
+      takeaways.push(`Spending currently uses about ${spendRatio}% of total inflow, which helps show how much room is left for saving.`);
+    }
+    if ((insights.transactions_per_day || 0) > 0) {
+      takeaways.push(`Transaction activity is averaging ${insights.transactions_per_day}/day in the selected period.`);
+    }
+  }
+
+  return takeaways.filter(Boolean).slice(0, 4);
+}
+
+function createReportCsvContent() {
+  const meta = getRoleReportMeta();
+  const currencyContext = getCurrencyContextLabel();
+  const insights = reportState.insights || {};
+  const categories = reportState.categories || [];
+  const monthlyNet = buildMonthlyNetSummary(reportState.monthly || []);
+  const userSummary = getRankedUserSummary(10);
+  const totalActiveUsers = (reportState.userSummary || []).length;
   const highlightRows = [
     [document.getElementById('highlightOneLabel')?.textContent || 'Highlight 1', document.getElementById('highlightOneValue')?.textContent || '-'],
     [document.getElementById('highlightTwoLabel')?.textContent || 'Highlight 2', document.getElementById('highlightTwoValue')?.textContent || '-'],
@@ -611,15 +759,18 @@ function createReportCsvContent() {
   const rows = [];
 
   rows.push([meta.title]);
-  rows.push(['Generated On', new Date().toLocaleString('en-IN')]);
+  rows.push(['Generated On', FinanceUtils.formatViewerTimestamp(new Date().toISOString())]);
   rows.push(['Range', getCurrentRangeLabel()]);
+  rows.push(['Display Currency', currencyContext.currency]);
+  rows.push(['Currency Mode', currencyContext.mode]);
+  rows.push(['Conversion Basis', 'Base values are converted from INR using demo rates.']);
   rows.push([]);
 
   if (reportsView === 'admin') {
     rows.push(['System Overview']);
     rows.push(['Net Position', FinanceUtils.formatCurrency((insights.total_income || 0) - (insights.total_expense || 0))]);
-    rows.push(['Average Inflow', document.getElementById('kpiIncome')?.textContent || '₹0']);
-    rows.push(['Average Outflow', document.getElementById('kpiExpense')?.textContent || '₹0']);
+    rows.push(['Average Inflow', FinanceUtils.formatCurrency(Math.round((insights.total_income || 0) / 30))]);
+    rows.push(['Average Outflow', FinanceUtils.formatCurrency(Math.round((insights.total_expense || 0) / 30))]);
     rows.push(['Platform Activity', `${insights.transactions_per_day || 0}/day`]);
     rows.push(['Average Transaction', FinanceUtils.formatCurrency(insights.avg_transaction || 0)]);
     rows.push(['Trend Direction', insights.trend_direction || 'Stable']);
@@ -627,6 +778,7 @@ function createReportCsvContent() {
     rows.push(['Blocked Users', insights.user_counts?.blocked || 0]);
     rows.push([]);
     rows.push(['All User Transaction Summary']);
+    rows.push(['Coverage', totalActiveUsers > userSummary.length ? `Top ${userSummary.length} active users by transaction count out of ${totalActiveUsers}` : `All ${totalActiveUsers} active users in range`]);
     rows.push(['User', 'Email', 'Transactions', 'Inflow', 'Outflow', 'Net']);
     userSummary.forEach((item) => {
       rows.push([
@@ -641,8 +793,8 @@ function createReportCsvContent() {
   } else {
     rows.push(['Personal Overview']);
     rows.push(['Net Savings', FinanceUtils.formatCurrency((insights.total_income || 0) - (insights.total_expense || 0))]);
-    rows.push(['Average Inflow', document.getElementById('kpiIncome')?.textContent || '₹0']);
-    rows.push(['Average Outflow', document.getElementById('kpiExpense')?.textContent || '₹0']);
+    rows.push(['Average Inflow', FinanceUtils.formatCurrency(Math.round((insights.total_income || 0) / 30))]);
+    rows.push(['Average Outflow', FinanceUtils.formatCurrency(Math.round((insights.total_expense || 0) / 30))]);
     rows.push(['Retention Rate', document.getElementById('insightSavingsRate')?.textContent || '0%']);
     rows.push(['Daily Activity', `${insights.transactions_per_day || 0}/day`]);
     rows.push(['Average Transaction', FinanceUtils.formatCurrency(insights.avg_transaction || 0)]);
@@ -652,6 +804,12 @@ function createReportCsvContent() {
   rows.push([]);
   rows.push(['Summary']);
   rows.push([document.getElementById('reportNarrativeText')?.textContent || '']);
+  rows.push([]);
+
+  rows.push(['Key Takeaways']);
+  buildReportTakeaways().forEach((item, index) => {
+    rows.push([`Takeaway ${index + 1}`, item]);
+  });
   rows.push([]);
 
   rows.push(['Highlights']);
@@ -669,7 +827,7 @@ function createReportCsvContent() {
   rows.push([reportsView === 'admin' ? 'Platform Monthly Snapshot' : 'Monthly Snapshot']);
   rows.push(['Period', 'Income', 'Expense', 'Net']);
   monthlyNet.forEach((item) => {
-    rows.push([item.key, FinanceUtils.formatCurrency(item.income), FinanceUtils.formatCurrency(item.expense), FinanceUtils.formatCurrency(item.net)]);
+    rows.push([formatPeriodLabel(item.key), FinanceUtils.formatCurrency(item.income), FinanceUtils.formatCurrency(item.expense), FinanceUtils.formatCurrency(item.net)]);
   });
 
   return rows.map((row) => row.map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
@@ -707,20 +865,22 @@ async function downloadReportPdf() {
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
   const marginX = 44;
   let cursorY = 52;
-  const formatValue = (value) => `INR ${formatCurrencyPdf(value || 0)}`;
+  const preferredCurrency = getEffectiveReportCurrency();
+  const currencyContext = getCurrencyContextLabel();
+  const formatValue = (value) => `${preferredCurrency} ${formatCurrencyPdf(value || 0)}`;
   const meta = getRoleReportMeta();
   const trendLabel = getCurrentRangeLabel();
-  const lineCanvas = document.getElementById('lineChart');
-  const pieCanvas = document.getElementById('pieChart');
   const insights = reportState.insights || {};
   const categories = reportState.categories || [];
   const monthlyNet = buildMonthlyNetSummary(reportState.monthly || []);
-  const userSummary = reportState.userSummary || [];
+  const userSummary = getRankedUserSummary(10);
+  const totalActiveUsers = (reportState.userSummary || []).length;
   const highlightRows = [
     [document.getElementById('highlightOneLabel')?.textContent || 'Highlight 1', document.getElementById('highlightOneValue')?.textContent || '-'],
     [document.getElementById('highlightTwoLabel')?.textContent || 'Highlight 2', document.getElementById('highlightTwoValue')?.textContent || '-'],
     [document.getElementById('highlightThreeLabel')?.textContent || 'Highlight 3', document.getElementById('highlightThreeValue')?.textContent || '-']
   ];
+  const takeaways = buildReportTakeaways();
   const ensurePdfSpace = (needed = 80) => {
     if (cursorY + needed > 760) {
       doc.addPage();
@@ -731,23 +891,87 @@ async function downloadReportPdf() {
     ensurePdfSpace(gap);
     cursorY += gap;
   };
-  const drawKeyValueRow = (label, value, options = {}) => {
-    const labelWidth = options.labelWidth || 170;
-    const valueWidth = options.valueWidth || 330;
-    const lineHeight = options.lineHeight || 14;
-    const topPad = options.topPad || 6;
-    const labelLines = doc.splitTextToSize(pdfSafeText(String(label)), labelWidth);
-    const valueLines = doc.splitTextToSize(pdfSafeText(String(value)), valueWidth);
-    const neededHeight = Math.max(options.minHeight || 42, Math.max(labelLines.length, valueLines.length) * lineHeight + 14);
-    ensurePdfSpace(neededHeight + topPad);
-    if (topPad) cursorY += topPad;
+  const drawStackedDetail = (label, value) => {
+    const labelLines = doc.splitTextToSize(pdfSafeText(String(label)), 500);
+    const valueLines = doc.splitTextToSize(pdfSafeText(String(value)), 480);
+    const rowHeight = 28 + (labelLines.length * 12) + (valueLines.length * 13);
+    ensurePdfSpace(rowHeight + 10);
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(marginX, cursorY - 14, 504, rowHeight, 14, 14, 'F');
     doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
     doc.setTextColor(15, 23, 42);
-    doc.text(labelLines, marginX, cursorY);
+    doc.text(labelLines, marginX + 14, cursorY + 2);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(71, 85, 105);
-    doc.text(valueLines, marginX + (options.valueOffset || 190), cursorY);
-    cursorY += neededHeight;
+    doc.text(valueLines, marginX + 14, cursorY + 20 + (labelLines.length - 1) * 12);
+    cursorY += rowHeight + 12;
+  };
+  const renderChartForPdf = async (kind) => {
+    const wrapper = document.createElement('div');
+    wrapper.style.position = 'fixed';
+    wrapper.style.left = '-9999px';
+    wrapper.style.top = '-9999px';
+    wrapper.style.width = kind === 'line' ? '1000px' : '860px';
+    wrapper.style.height = kind === 'line' ? '500px' : '600px';
+    wrapper.style.background = '#ffffff';
+    document.body.appendChild(wrapper);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = kind === 'line' ? 1000 : 860;
+    canvas.height = kind === 'line' ? 500 : 600;
+    wrapper.appendChild(canvas);
+
+    let chart;
+    if (kind === 'line') {
+      const monthlyData = reportState.monthly || [];
+      const grouped = {};
+      monthlyData.forEach((item) => {
+        const key = `${item.year}-${String(item.month).padStart(2, '0')}`;
+        if (!grouped[key]) grouped[key] = { income: 0, expense: 0 };
+        if (item.type === 'income') grouped[key].income += item.total;
+        else grouped[key].expense += Math.abs(item.total);
+      });
+      const sortedKeys = Object.keys(grouped).sort();
+      const labels = [];
+      const incomeData = [];
+      const expenseData = [];
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      sortedKeys.forEach((key) => {
+        const [, month] = key.split('-');
+        labels.push(monthNames[parseInt(month, 10) - 1]);
+        incomeData.push(grouped[key].income);
+        expenseData.push(grouped[key].expense);
+      });
+      chart = FinanceCharts.createCashflowLineChart(canvas, {
+        labels,
+        incomeData,
+        expenseData,
+        palette: 'minimal',
+        legendPosition: 'top',
+        showLegend: true,
+        themeOverride: 'light'
+      });
+    } else {
+      chart = FinanceCharts.createSpendingDonutChart(canvas, {
+        labels: categories.map((item) => item.category),
+        data: categories.map((item) => item.amount),
+        total: categories.reduce((sum, item) => sum + (item.amount || 0), 0),
+        palette: 'minimal',
+        legendPosition: 'bottom',
+        legendAlign: 'center',
+        centerLabel: 'Total spend',
+        centerCompact: true,
+        showLegend: true,
+        themeOverride: 'light'
+      });
+    }
+
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const dataUrl = canvas.toDataURL('image/png', 1.0);
+    chart?.destroy?.();
+    document.body.removeChild(wrapper);
+    return dataUrl;
   };
 
   doc.setFillColor(47, 111, 237);
@@ -764,13 +988,24 @@ async function downloadReportPdf() {
   doc.setFontSize(11);
   doc.setTextColor(90, 97, 112);
   doc.text(pdfSafeText(`Range: ${trendLabel}`), marginX, cursorY + 66);
-  doc.text(pdfSafeText(`Generated: ${new Date().toLocaleString('en-IN')}`), marginX + 220, cursorY + 66);
-  cursorY += 106;
+  doc.text(pdfSafeText(`Generated: ${FinanceUtils.formatViewerTimestamp(new Date().toISOString())}`), marginX + 220, cursorY + 66);
+  doc.text(pdfSafeText(`Currency: ${currencyContext.currency} (${currencyContext.mode})`), marginX, cursorY + 84);
+  doc.text(pdfSafeText('Conversion basis: Base values converted from INR using demo rates'), marginX, cursorY + 102);
+  cursorY += 134;
 
   const stats = [
-    ['Net Savings', document.getElementById('kpiBalance')?.textContent || '₹0'],
-    ['Avg. Inflow', document.getElementById('kpiIncome')?.textContent || '₹0'],
-    ['Avg. Outflow', document.getElementById('kpiExpense')?.textContent || '₹0'],
+    [
+      document.getElementById('kpiBalanceLabel')?.textContent || 'Net Savings',
+      FinanceUtils.formatCurrency((insights.total_income || 0) - (insights.total_expense || 0))
+    ],
+    [
+      document.getElementById('kpiIncomeLabel')?.textContent || 'Avg. Inflow',
+      FinanceUtils.formatCurrency(Math.round((insights.total_income || 0) / 30))
+    ],
+    [
+      document.getElementById('kpiExpenseLabel')?.textContent || 'Avg. Outflow',
+      FinanceUtils.formatCurrency(Math.round((insights.total_expense || 0) / 30))
+    ],
   ];
 
   stats.forEach(([label, value], index) => {
@@ -812,18 +1047,38 @@ async function downloadReportPdf() {
 
   const summaryText = document.getElementById('reportNarrativeText')?.textContent || '';
   if (summaryText) {
-    ensurePdfSpace(90);
+    ensurePdfSpace(110);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(15);
     doc.setTextColor(15, 23, 42);
     doc.text(pdfSafeText('Executive Summary'), marginX, cursorY);
-    cursorY += 18;
+    cursorY += 22;
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(11);
     doc.setTextColor(71, 85, 105);
     const summaryLines = doc.splitTextToSize(summaryText, 500);
     doc.text(summaryLines.map(pdfSafeText), marginX, cursorY);
-    cursorY += summaryLines.length * 15 + 16;
+    cursorY += summaryLines.length * 15 + 24;
+  }
+
+  if (takeaways.length) {
+    ensurePdfSpace(110);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(15);
+    doc.setTextColor(15, 23, 42);
+    doc.text(pdfSafeText('Key Takeaways'), marginX, cursorY);
+    cursorY += 24;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(11);
+    doc.setTextColor(71, 85, 105);
+    takeaways.forEach((item) => {
+      const wrapped = doc.splitTextToSize(pdfSafeText(item), 480);
+      ensurePdfSpace(wrapped.length * 14 + 10);
+      doc.text(pdfSafeText('-'), marginX, cursorY);
+      doc.text(wrapped, marginX + 14, cursorY);
+      cursorY += wrapped.length * 14 + 8;
+    });
+    addSectionGap(8);
   }
 
   const insightRows = [
@@ -842,7 +1097,7 @@ async function downloadReportPdf() {
   cursorY += 22;
   doc.setFontSize(11);
   insightRows.forEach(([label, value]) => {
-    drawKeyValueRow(label, value, { minHeight: 38 });
+    drawStackedDetail(label, value);
   });
 
   addSectionGap(10);
@@ -907,7 +1162,7 @@ async function downloadReportPdf() {
       const wrapped = doc.splitTextToSize(pdfSafeText(monthlyText), 400);
       ensurePdfSpace(Math.max(22, wrapped.length * 13 + 8));
       doc.setFont('helvetica', 'bold');
-      doc.text(pdfSafeText(item.key), marginX, cursorY);
+      doc.text(pdfSafeText(formatPeriodLabel(item.key)), marginX, cursorY);
       doc.setFont('helvetica', 'normal');
       doc.text(wrapped, marginX + 88, cursorY);
       cursorY += Math.max(24, wrapped.length * 13 + 8);
@@ -921,6 +1176,19 @@ async function downloadReportPdf() {
     doc.setFontSize(15);
     doc.setTextColor(15, 23, 42);
     doc.text(pdfSafeText('All User Transaction Summary'), marginX, cursorY);
+    cursorY += 24;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(100, 116, 139);
+    doc.text(
+      pdfSafeText(
+        totalActiveUsers > userSummary.length
+          ? `Showing the top ${userSummary.length} active users by transaction count out of ${totalActiveUsers}.`
+          : `Showing all ${totalActiveUsers} active users in the selected range.`
+      ),
+      marginX,
+      cursorY
+    );
     cursorY += 24;
     userSummary.forEach((item) => {
       const leftLines = [
@@ -953,22 +1221,24 @@ async function downloadReportPdf() {
     });
   }
 
-  if (lineCanvas && !document.getElementById('lineChartWrap')?.classList.contains('hidden')) {
+  if (!document.getElementById('lineChartWrap')?.classList.contains('hidden') && (reportState.monthly || []).length) {
+    const lineImage = await renderChartForPdf('line');
     doc.addPage();
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(18);
     doc.setTextColor(15, 23, 42);
     doc.text(pdfSafeText('Growth Trend'), marginX, 48);
-    doc.addImage(lineCanvas.toDataURL('image/png', 1.0), 'PNG', marginX, 72, 500, 250);
+    doc.addImage(lineImage, 'PNG', marginX, 72, 500, 250);
   }
 
-  if (pieCanvas && !document.getElementById('pieChartWrap')?.classList.contains('hidden')) {
+  if (!document.getElementById('pieChartWrap')?.classList.contains('hidden') && categories.length) {
+    const pieImage = await renderChartForPdf('pie');
     doc.addPage();
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(18);
     doc.setTextColor(15, 23, 42);
     doc.text(pdfSafeText('Spending Mix'), marginX, 48);
-    doc.addImage(pieCanvas.toDataURL('image/png', 1.0), 'PNG', marginX + 30, 78, 430, 300);
+    doc.addImage(pieImage, 'PNG', marginX + 30, 78, 430, 300);
   }
 
   const pageCount = doc.getNumberOfPages();
@@ -987,6 +1257,7 @@ function resetDateFilter() {
   document.getElementById('startDate').value = '';
   document.getElementById('endDate').value = '';
   FinanceUtils.refreshFilterFieldStates();
+  syncReportCurrencyContext();
   loadInsights();
   loadMonthlySummary();
   loadCategorySummary();
@@ -1001,6 +1272,8 @@ function resetDateFilter() {
   });
   reportsView = user?.role === 'admin' ? 'admin' : 'user';
   setAdminCopy(reportsView === 'admin');
+  initReportCurrencySelector();
+  syncReportCurrencyContext();
   updateTrendRangeLabel();
   await Promise.all([
     loadInsights(),
@@ -1008,3 +1281,12 @@ function resetDateFilter() {
     loadCategorySummary()
   ]);
 })();
+
+window.addEventListener('finly:currencychange', () => {
+  syncReportCurrencyContext();
+  applyDateFilter();
+});
+
+window.addEventListener('finly:localechange', () => {
+  applyDateFilter();
+});

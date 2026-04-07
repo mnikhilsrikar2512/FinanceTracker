@@ -37,8 +37,10 @@ def admin_dashboard(
     admin_user: User = Depends(require_admin)
 ):
     total_users = db.query(User).count()
-    active_users = db.query(User).filter(User.status == "active").count()
-    blocked_users = db.query(User).filter(User.status == "blocked").count()
+    non_admin_users = db.query(User).filter(User.role != "admin")
+    active_users = non_admin_users.filter(User.status == "active").count()
+    blocked_users = non_admin_users.filter(User.status == "blocked").count()
+    other_users = non_admin_users.filter(User.status.notin_(["active", "blocked"])).count()
     admin_count = db.query(User).filter(User.role == "admin").count()
     total_transactions = db.query(Transaction).filter(Transaction.is_deleted != True).count()
 
@@ -46,6 +48,7 @@ def admin_dashboard(
         "total_users": total_users,
         "active_users": active_users,
         "blocked_users": blocked_users,
+        "other_users": other_users,
         "admin_users": admin_count,
         "total_transactions": total_transactions
     })
@@ -253,9 +256,11 @@ def admin_analytics(
         "category_summary": category_summary,
         "user_summary": user_summary,
         "user_counts": {
-            "total": db.query(User).count(),
-            "active": db.query(User).filter(User.status == "active").count(),
-            "blocked": db.query(User).filter(User.status == "blocked").count(),
+            "total": db.query(User).filter(User.role != "admin").count(),
+            "active": db.query(User).filter(User.role != "admin", User.status == "active").count(),
+            "blocked": db.query(User).filter(User.role != "admin", User.status == "blocked").count(),
+            "other": db.query(User).filter(User.role != "admin", User.status.notin_(["active", "blocked"])).count(),
+            "admins": db.query(User).filter(User.role == "admin").count(),
         },
     })
 

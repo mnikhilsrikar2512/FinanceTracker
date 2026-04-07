@@ -108,7 +108,7 @@ def _transaction_summary(payload: dict) -> str:
     description = payload.get("description") or "No description"
     if amount is None:
         return f"{description} in {category}"
-    return f"{description} in {category} for INR {abs(float(amount)):.0f}"
+    return f"{description} in {category} for {abs(float(amount)):.0f} in base currency"
 
 
 def _format_action_label(action: str, log: dict) -> str:
@@ -167,7 +167,7 @@ def _format_action_description(action: str, log: dict) -> str:
         "BULK_DELETE_TRANSACTION": f"{payload.get('count') or 0} transactions were permanently deleted",
         "ADMIN_BLOCK_USER": f"{payload.get('email') or 'Selected account'} can no longer sign in",
         "ADMIN_UNBLOCK_USER": f"{payload.get('email') or 'Selected account'} can sign in again",
-        "CREATE_BUDGET": f"{category_name} budget set to INR {abs(float(payload.get('amount') or 0)):.0f}",
+        "CREATE_BUDGET": f"{category_name} budget set to {abs(float(payload.get('amount') or 0)):.0f} in base currency",
         "UPDATE_BUDGET": f"{category_name} budget updated to INR {abs(float(payload.get('amount') or 0)):.0f}",
         "DELETE_BUDGET": f"{category_name} budget removed",
         "BUDGET_REACHED_50": f"{category_name} has used about {threshold or 50}% of its limit",

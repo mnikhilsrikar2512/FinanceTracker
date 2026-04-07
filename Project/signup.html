@@ -37,7 +37,7 @@
   <link rel="stylesheet" href="styles.css?v=20260402-authfix">
 </head>
 
-<body class="bg-[#FBFBFD] dark:bg-black min-h-screen flex items-center justify-center p-6 transition-colors duration-300">
+<body data-page="signup" class="bg-[#FBFBFD] dark:bg-black min-h-screen flex items-center justify-center p-6 transition-colors duration-300">
   <div class="auth-panel">
 
     <!-- Title -->
@@ -130,109 +130,7 @@
 
   </div>
 
-  <script>
-    const form = document.getElementById("signupForm");
-    const errorBox = document.getElementById("errorBox");
-    const signupBtn = document.getElementById("signupBtn");
-
-    // Form validation rules
-    const validationRules = {
-      name: [
-        { required: true, message: 'Full name is required' },
-        { minLength: 2, message: 'Name is too short' }
-      ],
-      email: [
-        { required: true, message: 'Email is required' },
-        { email: true, message: 'Please enter a valid email address' }
-      ],
-      password: [
-        { required: true, message: 'Password is required' },
-        { minLength: 8, message: 'Password must be at least 8 characters' },
-        { pattern: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/, message: 'Password must include uppercase, lowercase, and a number' }
-      ],
-      confirmPassword: [
-        { required: true, message: 'Please confirm your password' }
-      ]
-    };
-
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      
-      // Clear previous errors
-      FinanceUtils.clearFormErrors(form);
-      
-      // Validate form
-      const validation = FinanceUtils.validateForm(form, validationRules);
-      if (!validation.isValid) {
-        FinanceUtils.showFormErrors(form, validation.errors);
-        return;
-      }
-
-      errorBox.classList.add("hidden");
-
-      const name = document.getElementById("name").value.trim();
-      const email = FinanceUtils.normalizeEmail(document.getElementById("email").value);
-      document.getElementById("email").value = email;
-      const password = document.getElementById("password").value;
-      const confirmPassword = document.getElementById("confirmPassword").value;
-
-      if (password !== confirmPassword) {
-        const error = { confirmPassword: "Passwords do not match" };
-        FinanceUtils.showFormErrors(form, error);
-        FinanceUtils.showToast("Passwords do not match", "error");
-        return;
-      }
-
-      signupBtn.innerText = "Creating Account...";
-      signupBtn.disabled = true;
-
-      try {
-        const data = await FinanceUtils.fetchPublic('/auth/signup', {
-          method: "POST",
-          body: JSON.stringify({ name, email, password })
-        });
-
-        FinanceUtils.showToast("Account created successfully!", "success");
-        if (data.data?.access_token) {
-          localStorage.setItem("token", data.data.access_token);
-          localStorage.setItem("finance_user_role", data.data?.user?.role || "user");
-        }
-
-        setTimeout(() => {
-          window.location.href = "app.html";
-        }, 1000);
-
-      } catch (err) {
-        errorBox.innerText = err.message;
-        errorBox.classList.remove("hidden");
-        FinanceUtils.showToast(err.message, "error");
-      } finally {
-        signupBtn.innerText = "Create Account";
-        signupBtn.disabled = false;
-      }
-    });
-
-    // Add real-time validation
-    form.querySelectorAll('input').forEach(input => {
-      input.addEventListener('blur', () => {
-        if (input.type === 'email') {
-          input.value = FinanceUtils.normalizeEmail(input.value);
-        }
-        const fieldName = input.name;
-        if (validationRules[fieldName]) {
-          const validation = FinanceUtils.validateForm(form, { [fieldName]: validationRules[fieldName] });
-          if (!validation.isValid) {
-            FinanceUtils.showFormErrors(form, validation.errors);
-          } else {
-            // Clear error for this field
-            const errorDiv = input.parentNode.querySelector('.error-message');
-            if (errorDiv) errorDiv.remove();
-            input.classList.remove('border-red-500');
-          }
-        }
-      });
-    });
-  </script>
+  <script src="js/pages/auth-pages.js?v=20260406-maint"></script>
 
 </body>
 </html>

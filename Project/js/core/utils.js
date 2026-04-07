@@ -6,8 +6,24 @@
 const DEFAULT_LOCAL_API_BASE = "http://127.0.0.1:8000/api/v1";
 const LOGIN_PAGE = "login.html";
 const LANDING_PAGE = "index.html";
+const DEFAULT_CURRENCY = "INR";
+const CURRENCY_STORAGE_KEY = "finance_currency";
+const LOCALE_WATCH_INTERVAL_MS = 30000;
+const SUPPORTED_CURRENCIES = {
+  INR: { code: "INR", label: "INR (Rs)", symbol: "₹", rateFromInr: 1 },
+  USD: { code: "USD", label: "USD ($)", symbol: "$", rateFromInr: 0.012 },
+  EUR: { code: "EUR", label: "EUR (€)", symbol: "€", rateFromInr: 0.011 },
+  GBP: { code: "GBP", label: "GBP (£)", symbol: "£", rateFromInr: 0.0095 }
+};
 let currentUserCache = null;
 let modalFocusOrigin = null;
+let localeWatchInitialized = false;
+let localeWatchHandle = null;
+let currencyDisplayOverride = null;
+let currentLocaleSnapshot = {
+  locale: "",
+  timeZone: ""
+};
 
 function normalizeApiBase(value) {
   const normalized = String(value || '').trim();
@@ -50,6 +66,183 @@ function setApiBase(value, options = {}) {
 }
 
 window.API_BASE = resolveApiBase();
+
+function getBrowserLocale() {
+  return navigator.languages?.[0] || navigator.language || "en-IN";
+}
+
+function getCurrentLocale() {
+  return getBrowserLocale();
+}
+
+function getCurrentTimeZone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch (error) {
+    return "UTC";
+  }
+}
+
+function getLocalDateInputValue(dateInput = new Date()) {
+  const date = dateInput instanceof Date ? new Date(dateInput) : new Date(dateInput);
+  if (Number.isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function inferCurrencyFromLocale(locale = getCurrentLocale()) {
+  const upper = String(locale || "").toUpperCase();
+  if (upper.includes("-US")) return "USD";
+  if (upper.includes("-GB")) return "GBP";
+  if (
+    upper.includes("-DE") ||
+    upper.includes("-FR") ||
+    upper.includes("-ES") ||
+    upper.includes("-IT") ||
+    upper.includes("-NL") ||
+    upper.includes("-PT") ||
+    upper.includes("-IE")
+  ) {
+    return "EUR";
+  }
+  return DEFAULT_CURRENCY;
+}
+
+function getSupportedCurrencies() {
+  return Object.values(SUPPORTED_CURRENCIES);
+}
+
+function getPreferredCurrency() {
+  const saved = String(localStorage.getItem(CURRENCY_STORAGE_KEY) || "").toUpperCase();
+  if (SUPPORTED_CURRENCIES[saved]) {
+    return saved;
+  }
+  return inferCurrencyFromLocale();
+}
+
+function getCurrencyDisplayOverride() {
+  return currencyDisplayOverride;
+}
+
+function getDisplayCurrency() {
+  return currencyDisplayOverride || getPreferredCurrency();
+}
+
+function convertCurrency(amount, fromCurrency = DEFAULT_CURRENCY, toCurrency = getDisplayCurrency()) {
+  const numericAmount = Number(amount || 0);
+  const from = SUPPORTED_CURRENCIES[String(fromCurrency || DEFAULT_CURRENCY).toUpperCase()];
+  const to = SUPPORTED_CURRENCIES[String(toCurrency || DEFAULT_CURRENCY).toUpperCase()];
+  if (!from || !to) return numericAmount;
+  const amountInInr = from.code === "INR" ? numericAmount : numericAmount / from.rateFromInr;
+  return to.code === "INR" ? amountInInr : amountInInr * to.rateFromInr;
+}
+
+function refreshCurrencySelectors(root = document) {
+  const preferredCurrency = getPreferredCurrency();
+  root.querySelectorAll("[data-currency-selector]").forEach((select) => {
+    const options = getSupportedCurrencies()
+      .map((currency) => `<option value="${currency.code}">${currency.label}</option>`)
+      .join("");
+    if (select.innerHTML !== options) {
+      select.innerHTML = options;
+    }
+    select.value = preferredCurrency;
+  });
+}
+
+function setPreferredCurrency(currency, options = {}) {
+  const normalized = String(currency || "").toUpperCase();
+  const nextCurrency = SUPPORTED_CURRENCIES[normalized] ? normalized : DEFAULT_CURRENCY;
+  const { persist = true } = options;
+  if (persist) {
+    localStorage.setItem(CURRENCY_STORAGE_KEY, nextCurrency);
+  }
+  refreshCurrencySelectors();
+  window.dispatchEvent(new CustomEvent("finly:currencychange", {
+    detail: {
+      currency: nextCurrency
+    }
+  }));
+  return nextCurrency;
+}
+
+function setCurrencyDisplayOverride(currency) {
+  const normalized = String(currency || "").toUpperCase();
+  currencyDisplayOverride = SUPPORTED_CURRENCIES[normalized] ? normalized : null;
+  window.dispatchEvent(new CustomEvent("finly:currencychange", {
+    detail: {
+      currency: getDisplayCurrency(),
+      override: currencyDisplayOverride
+    }
+  }));
+  window.dispatchEvent(new CustomEvent("finly:displaycurrencychange", {
+    detail: {
+      currency: getDisplayCurrency(),
+      override: currencyDisplayOverride
+    }
+  }));
+  return getDisplayCurrency();
+}
+
+function clearCurrencyDisplayOverride() {
+  return setCurrencyDisplayOverride(null);
+}
+
+function bindCurrencySelectors(root = document) {
+  refreshCurrencySelectors(root);
+  root.querySelectorAll("[data-currency-selector]").forEach((select) => {
+    if (select.dataset.currencyBound === "true") return;
+    select.addEventListener("change", (event) => {
+      setPreferredCurrency(event.target.value);
+    });
+    select.dataset.currencyBound = "true";
+  });
+}
+
+function getLocaleSnapshot() {
+  return {
+    locale: getCurrentLocale(),
+    timeZone: getCurrentTimeZone()
+  };
+}
+
+function emitLocaleChangeIfNeeded(force = false) {
+  const nextSnapshot = getLocaleSnapshot();
+  const changed = force
+    || nextSnapshot.locale !== currentLocaleSnapshot.locale
+    || nextSnapshot.timeZone !== currentLocaleSnapshot.timeZone;
+
+  if (!changed) return;
+  currentLocaleSnapshot = nextSnapshot;
+  window.dispatchEvent(new CustomEvent("finly:localechange", {
+    detail: nextSnapshot
+  }));
+}
+
+function initLocaleWatch() {
+  if (localeWatchInitialized) return;
+  localeWatchInitialized = true;
+  emitLocaleChangeIfNeeded(true);
+
+  window.addEventListener("focus", () => emitLocaleChangeIfNeeded(true));
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) emitLocaleChangeIfNeeded(true);
+  });
+  window.addEventListener("storage", (event) => {
+    if (event.key === CURRENCY_STORAGE_KEY) {
+      refreshCurrencySelectors();
+      window.dispatchEvent(new CustomEvent("finly:currencychange", {
+        detail: {
+          currency: getPreferredCurrency()
+        }
+      }));
+    }
+  });
+
+  localeWatchHandle = window.setInterval(() => emitLocaleChangeIfNeeded(), LOCALE_WATCH_INTERVAL_MS);
+}
 
 function normalizeEmail(value) {
   return String(value || '').trim().toLowerCase();
@@ -562,13 +755,28 @@ function debounce(func, wait) {
  * @param {string} currency - Currency code (default: INR)
  * @returns {string} Formatted currency
  */
-function formatCurrency(amount, currency = 'INR') {
-  return new Intl.NumberFormat('en-IN', {
+function formatCurrency(amount, currencyOrOptions = null) {
+  const options = typeof currencyOrOptions === "string"
+    ? { currency: currencyOrOptions }
+    : (currencyOrOptions || {});
+  const requestedCurrency = String(options.currency || getDisplayCurrency()).toUpperCase();
+  const targetCurrency = SUPPORTED_CURRENCIES[requestedCurrency]
+    ? requestedCurrency
+    : getDisplayCurrency();
+  const sourceCurrency = SUPPORTED_CURRENCIES[String(options.sourceCurrency || DEFAULT_CURRENCY).toUpperCase()]
+    ? String(options.sourceCurrency || DEFAULT_CURRENCY).toUpperCase()
+    : DEFAULT_CURRENCY;
+  const locale = options.locale || getCurrentLocale();
+  const compact = Boolean(options.compact);
+  const convertedAmount = convertCurrency(amount, sourceCurrency, targetCurrency);
+
+  return new Intl.NumberFormat(locale, {
     style: 'currency',
-    currency: currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0
-  }).format(amount);
+    currency: targetCurrency,
+    notation: compact ? 'compact' : 'standard',
+    minimumFractionDigits: options.minimumFractionDigits ?? 0,
+    maximumFractionDigits: options.maximumFractionDigits ?? (compact ? 1 : 0)
+  }).format(convertedAmount || 0);
 }
 
 /**
@@ -579,23 +787,63 @@ function formatCurrency(amount, currency = 'INR') {
  */
 function formatDate(dateString, format = 'short') {
   const date = new Date(dateString);
+  const locale = getCurrentLocale();
   
   switch(format) {
     case 'long':
-      return date.toLocaleDateString('en-IN', { 
+      return date.toLocaleDateString(locale, { 
         weekday: 'long', 
         year: 'numeric', 
         month: 'long', 
         day: 'numeric' 
       });
     case 'time':
-      return date.toLocaleTimeString('en-IN', { 
+      return date.toLocaleTimeString(locale, { 
         hour: '2-digit', 
         minute: '2-digit' 
       });
     default:
-      return date.toLocaleDateString('en-IN');
+      return date.toLocaleDateString(locale);
   }
+}
+
+function getCurrentTimeZoneLabel() {
+  try {
+    const zoneId = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (!zoneId) return 'Local time';
+    const humanized = zoneId.split('/').pop()?.replace(/_/g, ' ');
+    return humanized || zoneId;
+  } catch (error) {
+    return 'Local time';
+  }
+}
+
+function formatViewerTimestamp(dateString, options = {}) {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return '';
+
+  const {
+    includeDate = true,
+    includeTime = true,
+    includeZone = false
+  } = options;
+
+  const formatOptions = {};
+  if (includeDate) {
+    formatOptions.year = 'numeric';
+    formatOptions.month = 'short';
+    formatOptions.day = 'numeric';
+  }
+  if (includeTime) {
+    formatOptions.hour = 'numeric';
+    formatOptions.minute = '2-digit';
+  }
+  if (includeZone) {
+    formatOptions.timeZoneName = 'short';
+  }
+
+  return new Intl.DateTimeFormat(undefined, formatOptions).format(date);
 }
 
 function formatDateForApi(dateString, endOfDay = false) {
@@ -810,7 +1058,14 @@ function injectThemeToggle() {
       <label class="theme-toggle" title="Toggle light and dark mode">
         <input type="checkbox" class="theme-toggle-input" aria-label="Toggle light and dark mode" onchange="toggleTheme()">
         <span class="theme-toggle-track" aria-hidden="true">
-          <span class="theme-toggle-dot"></span>
+          <span class="theme-toggle-background theme-toggle-sun-glow"></span>
+          <span class="theme-toggle-background theme-toggle-moon-glow"></span>
+          <span class="theme-toggle-icon theme-toggle-icon-sun">☀</span>
+          <span class="theme-toggle-icon theme-toggle-icon-moon">☾</span>
+          <span class="theme-toggle-dot">
+            <span class="theme-toggle-dot-icon theme-toggle-dot-sun">☀</span>
+            <span class="theme-toggle-dot-icon theme-toggle-dot-moon">☾</span>
+          </span>
         </span>
       </label>
     `;
@@ -822,6 +1077,8 @@ function injectThemeToggle() {
 // Auto-init theme
 initTheme();
 document.addEventListener('DOMContentLoaded', injectThemeToggle);
+document.addEventListener('DOMContentLoaded', () => bindCurrencySelectors());
+initLocaleWatch();
 
 function refreshFilterFieldStates(root = document) {
   root.querySelectorAll('.filter-surface .apple-input').forEach((field) => {
@@ -941,7 +1198,19 @@ window.FinanceUtils = {
   clearFormErrors,
   debounce,
   formatCurrency,
+  convertCurrency,
+  getSupportedCurrencies,
+  getPreferredCurrency,
+  getCurrencyDisplayOverride,
+  setCurrencyDisplayOverride,
+  clearCurrencyDisplayOverride,
+  setPreferredCurrency,
+  getCurrentLocale,
+  getCurrentTimeZone,
+  getLocalDateInputValue,
   formatDate,
+  formatViewerTimestamp,
+  getCurrentTimeZoneLabel,
   formatDateForApi,
   initAccessibility,
   initModalUX,
@@ -954,5 +1223,6 @@ window.FinanceUtils = {
   closeModal,
   escapeHTML,
   refreshFilterFieldStates,
-  bindFilterFieldStates
+  bindFilterFieldStates,
+  bindCurrencySelectors
 };
