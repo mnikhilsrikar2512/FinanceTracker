@@ -4,6 +4,7 @@ from app.repositories import transaction_repo, user_repo, category_repo
 from app.models.category import Category
 from app.models.transaction import Transaction
 from datetime import datetime, UTC
+from app.core.timezone import utc_now_naive
 
 
 def create_transaction(db: Session, data, current_user_id: int = None):
@@ -68,7 +69,7 @@ def update_transaction(db: Session, txn_id: int, updates, current_user_id: int =
         update_data["amount"] = abs(update_data["amount"]) if category.type == "income" else -abs(update_data["amount"])
 
     update_data["modified_by"] = current_user_id or txn.user_id
-    update_data["modified_at"] = datetime.now(UTC)
+    update_data["modified_at"] = utc_now_naive()
 
     return transaction_repo.update_transaction(db, txn, update_data)
 

@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.auth import get_current_user, require_admin
 from app.core.response import success_response, paginated_response
 from app.core.deps import get_db
+from app.core.timezone import to_utc_naive
 from app.models.audit_log import AuditLog
 from app.models.user import User
 
@@ -108,7 +109,7 @@ def _transaction_summary(payload: dict) -> str:
     description = payload.get("description") or "No description"
     if amount is None:
         return f"{description} in {category}"
-    return f"{description} in {category} for {abs(float(amount)):.0f} in base currency"
+    return f"{description} in {category} for {abs(float(amount)):.0f}"
 
 
 def _format_action_label(action: str, log: dict) -> str:
@@ -167,14 +168,14 @@ def _format_action_description(action: str, log: dict) -> str:
         "BULK_DELETE_TRANSACTION": f"{payload.get('count') or 0} transactions were permanently deleted",
         "ADMIN_BLOCK_USER": f"{payload.get('email') or 'Selected account'} can no longer sign in",
         "ADMIN_UNBLOCK_USER": f"{payload.get('email') or 'Selected account'} can sign in again",
-        "CREATE_BUDGET": f"{category_name} budget set to {abs(float(payload.get('amount') or 0)):.0f} in base currency",
-        "UPDATE_BUDGET": f"{category_name} budget updated to INR {abs(float(payload.get('amount') or 0)):.0f}",
+        "CREATE_BUDGET": f"{category_name} budget set to {abs(float(payload.get('amount') or 0)):.0f}",
+        "UPDATE_BUDGET": f"{category_name} budget updated to {abs(float(payload.get('amount') or 0)):.0f}",
         "DELETE_BUDGET": f"{category_name} budget removed",
         "BUDGET_REACHED_50": f"{category_name} has used about {threshold or 50}% of its limit",
         "BUDGET_REACHED_75": f"{category_name} has used about {threshold or 75}% of its limit",
         "BUDGET_REACHED_LIMIT": f"{category_name} has reached 100% of its budget",
         "BUDGET_OVER_BUDGET": (
-            f"{category_name} is over budget by INR {abs(float(remaining)):.0f}"
+            f"{category_name} is over budget by {abs(float(remaining)):.0f}"
             if remaining is not None else f"{category_name} is over budget"
         ),
         "FAILED_LOGIN": "Someone used an invalid password or email combination",
@@ -268,11 +269,11 @@ def get_user_logs(
         filters["level"] = level
     
     if start_date:
-        query = query.filter(AuditLog.timestamp >= start_date.replace(tzinfo=None))
+        query = query.filter(AuditLog.timestamp >= to_utc_naive(start_date))
         filters["start_date"] = start_date.isoformat()
     
     if end_date:
-        query = query.filter(AuditLog.timestamp <= end_date.replace(tzinfo=None))
+        query = query.filter(AuditLog.timestamp <= to_utc_naive(end_date))
         filters["end_date"] = end_date.isoformat()
     
     if request_id:
@@ -326,11 +327,11 @@ def get_recent_logs(
         filters["level"] = level
     
     if start_date:
-        query = query.filter(AuditLog.timestamp >= start_date.replace(tzinfo=None))
+        query = query.filter(AuditLog.timestamp >= to_utc_naive(start_date))
         filters["start_date"] = start_date.isoformat()
     
     if end_date:
-        query = query.filter(AuditLog.timestamp <= end_date.replace(tzinfo=None))
+        query = query.filter(AuditLog.timestamp <= to_utc_naive(end_date))
         filters["end_date"] = end_date.isoformat()
     
     if request_id:
@@ -362,9 +363,9 @@ def get_log_stats(
     base_query = db.query(AuditLog)
 
     if start_date:
-        base_query = base_query.filter(AuditLog.timestamp >= start_date.replace(tzinfo=None))
+        base_query = base_query.filter(AuditLog.timestamp >= to_utc_naive(start_date))
     if end_date:
-        base_query = base_query.filter(AuditLog.timestamp <= end_date.replace(tzinfo=None))
+        base_query = base_query.filter(AuditLog.timestamp <= to_utc_naive(end_date))
 
     action_stats = [
         {
@@ -418,9 +419,9 @@ def get_failed_logins(
     query = db.query(AuditLog).filter(AuditLog.action == "FAILED_LOGIN")
     
     if start_date:
-        query = query.filter(AuditLog.timestamp >= start_date.replace(tzinfo=None))
+        query = query.filter(AuditLog.timestamp >= to_utc_naive(start_date))
     if end_date:
-        query = query.filter(AuditLog.timestamp <= end_date.replace(tzinfo=None))
+        query = query.filter(AuditLog.timestamp <= to_utc_naive(end_date))
     
     logs = query.order_by(desc(AuditLog.timestamp)).limit(limit).all()
     

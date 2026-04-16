@@ -2,6 +2,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.models.category import Category
+from app.models.transaction import Transaction
 
 def create_category(db: Session, name: str, type: str):
     category = Category(name=name, type=type)
@@ -16,3 +17,21 @@ def get_all_categories(db: Session):
 def get_category_by_name(db: Session, name: str):
     normalized_name = name.strip().lower()
     return db.query(Category).filter(func.lower(Category.name) == normalized_name).first()
+
+
+def get_categories_with_stats(db: Session, category_type: str | None = None):
+    query = (
+        db.query(
+            Category.id.label("id"),
+            Category.name.label("name"),
+            Category.type.label("type"),
+            func.count(Transaction.id).label("usage_count"),
+            func.coalesce(func.sum(func.abs(Transaction.amount)), 0).label("total_amount"),
+        )
+        .outerjoin(Transaction, Transaction.category_id == Category.id)
+    )
+
+    if category_type:
+        query = query.filter(Category.type == category_type)
+
+    return query.group_by(Category.id, Category.name, Category.type).all()

@@ -1,29 +1,40 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from app.schemas.category import CategoryCreate, CategoryResponse
+from app.schemas.category import CategoryCreate
 from app.services import category_service
+from app.repositories import category_repo
 from app.core.deps import get_db
-from app.core.auth import get_current_user
+from app.core.auth import get_current_user, require_admin
 from app.core.response import success_response, paginated_response
 from app.models.user import User
 from app.models.category import Category
 from app.models.transaction import Transaction
 
 router = APIRouter(prefix="/categories", tags=["Categories"])
+CATEGORY_OWNERSHIP_SCOPE = "global"
+CATEGORY_OWNERSHIP_LABEL = "Global admin-managed"
+
+
+def _serialize_category(category: Category, usage_count: int = 0, total_amount: float = 0.0) -> dict:
+    return {
+        "id": category.id,
+        "name": category.name,
+        "type": category.type,
+        "usage_count": int(usage_count or 0),
+        "total_amount": float(total_amount or 0),
+        "ownership_scope": CATEGORY_OWNERSHIP_SCOPE,
+        "ownership_label": CATEGORY_OWNERSHIP_LABEL,
+    }
 
 
 @router.post("", response_model=dict)
 def create_category(
     data: CategoryCreate, 
-    current_user: User = Depends(get_current_user),
+    admin_user: User = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
     result = category_service.create_category(db, data.name, data.type)
-    return success_response(data={
-        "id": result.id,
-        "name": result.name,
-        "type": result.type
-    })
+    return success_response(data=_serialize_category(result))
 
 
 @router.get("", response_model=dict)
@@ -33,28 +44,35 @@ def get_categories(
     type: str = None,
     include_stats: bool = True
 ):
-    query = db.query(Category)
-    
-    if type:
-        query = query.filter(Category.type == type)
-    
-    categories = query.all()
-    
     if include_stats:
-        data = []
-        for cat in categories:
-            usage_count = db.query(Transaction).filter(Transaction.category_id == cat.id).count()
-            total = db.query(Transaction).filter(Transaction.category_id == cat.id).all()
-            total_amount = sum(abs(t.amount) for t in total)
-            data.append({
-                "id": cat.id,
-                "name": cat.name,
-                "type": cat.type,
-                "usage_count": usage_count,
-                "total_amount": total_amount
-            })
+        rows = category_repo.get_categories_with_stats(db, type)
+        data = [
+            {
+                "id": row.id,
+                "name": row.name,
+                "type": row.type,
+                "usage_count": int(row.usage_count or 0),
+                "total_amount": float(row.total_amount or 0),
+                "ownership_scope": CATEGORY_OWNERSHIP_SCOPE,
+                "ownership_label": CATEGORY_OWNERSHIP_LABEL,
+            }
+            for row in rows
+        ]
     else:
-        data = [{"id": c.id, "name": c.name, "type": c.type} for c in categories]
+        query = db.query(Category)
+        if type:
+            query = query.filter(Category.type == type)
+        categories = query.all()
+        data = [
+            {
+                "id": c.id,
+                "name": c.name,
+                "type": c.type,
+                "ownership_scope": CATEGORY_OWNERSHIP_SCOPE,
+                "ownership_label": CATEGORY_OWNERSHIP_LABEL,
+            }
+            for c in categories
+        ]
     
     return success_response(data=data)
 
@@ -63,7 +81,7 @@ def get_categories(
 def delete_category(
     category_id: int,
     reassign_to: int = Query(default=None, description="Reassign transactions to this category ID"),
-    current_user: User = Depends(get_current_user),
+    admin_user: User = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
     category = db.query(Category).filter(Category.id == category_id).first()

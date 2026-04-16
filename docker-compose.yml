@@ -3,8 +3,8 @@ services:
     image: mcr.microsoft.com/azure-sql-edge
     container_name: sqlserver
     environment:
-      - ACCEPT_EULA=1
-      - MSSQL_SA_PASSWORD=StrongPass123
+      ACCEPT_EULA: "1"
+      MSSQL_SA_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in your environment}
     ports:
       - "1433:1433"
     restart: always

@@ -1,10 +1,10 @@
 """Admin router: privileged endpoints for user management and config"""
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from sqlalchemy import Date, and_, case, cast, func
+from sqlalchemy import Date, Integer, and_, case, cast, func
 
 from app.core.deps import get_db
 from app.core.auth import get_current_user, require_admin
@@ -15,12 +15,43 @@ from app.models.category import Category
 from app.repositories import user_repo, transaction_repo
 from app.repositories import analytics_repo
 from app.services.log_service import log_action
+from app.core.transaction_filters import active_transaction_condition
 
 router = APIRouter(prefix="/admin", tags=["Admin"], dependencies=[Depends(require_admin)])
 
 
 class UserStatusUpdate(BaseModel):
     status: str
+
+
+def _normalize_bucket_date(value):
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if hasattr(value, "year") and hasattr(value, "month") and hasattr(value, "day"):
+        return value
+    try:
+        return datetime.fromisoformat(str(value)).date()
+    except (ValueError, TypeError):
+        return None
+
+
+def _bucket_date_expression(db: Session):
+    dialect = (db.bind.dialect.name if db.bind and db.bind.dialect else "").lower()
+    if dialect == "sqlite":
+        return func.date(Transaction.date)
+    return cast(Transaction.date, Date)
+
+
+def _year_month_expressions(db: Session):
+    dialect = (db.bind.dialect.name if db.bind and db.bind.dialect else "").lower()
+    if dialect == "sqlite":
+        return (
+            cast(func.strftime("%Y", Transaction.date), Integer),
+            cast(func.strftime("%m", Transaction.date), Integer),
+        )
+    return func.year(Transaction.date), func.month(Transaction.date)
 
 
 def _apply_transaction_date_filters(query, start_date: datetime = None, end_date: datetime = None):
@@ -42,7 +73,7 @@ def admin_dashboard(
     blocked_users = non_admin_users.filter(User.status == "blocked").count()
     other_users = non_admin_users.filter(User.status.notin_(["active", "blocked"])).count()
     admin_count = db.query(User).filter(User.role == "admin").count()
-    total_transactions = db.query(Transaction).filter(Transaction.is_deleted != True).count()
+    total_transactions = db.query(Transaction).filter(active_transaction_condition(Transaction)).count()
 
     return success_response(data={
         "total_users": total_users,
@@ -58,48 +89,50 @@ def admin_dashboard(
 def admin_analytics(
     start_date: datetime = Query(default=None, description="Start date"),
     end_date: datetime = Query(default=None, description="End date"),
+    granularity: str = Query(default="month", description="Time bucket: day, week, or month"),
     db: Session = Depends(get_db),
     admin_user: User = Depends(require_admin)
 ):
-    base_query = db.query(Transaction).filter(Transaction.is_deleted != True)
+    normalized_granularity = str(granularity or "month").lower()
+    if normalized_granularity not in {"day", "week", "month"}:
+        normalized_granularity = "month"
+
+    base_query = db.query(Transaction).filter(active_transaction_condition(Transaction))
     base_query = _apply_transaction_date_filters(base_query, start_date, end_date)
 
     income_total = _apply_transaction_date_filters(
         db.query(func.sum(Transaction.amount))
-        .join(Category, Transaction.category_id == Category.id)
-        .filter(Transaction.is_deleted != True, Category.type == "income"),
+        .filter(active_transaction_condition(Transaction), Transaction.amount > 0),
         start_date,
         end_date,
     ).scalar() or 0
 
-    raw_expense_total = _apply_transaction_date_filters(
-        db.query(func.sum(Transaction.amount))
-        .join(Category, Transaction.category_id == Category.id)
-        .filter(Transaction.is_deleted != True, Category.type == "expense"),
+    expense_total = _apply_transaction_date_filters(
+        db.query(func.sum(func.abs(Transaction.amount)))
+        .filter(active_transaction_condition(Transaction), Transaction.amount < 0),
         start_date,
         end_date,
     ).scalar() or 0
-    expense_total = abs(raw_expense_total)
     average_transaction = _apply_transaction_date_filters(
-        db.query(func.avg(func.abs(Transaction.amount))).filter(Transaction.is_deleted != True),
+        db.query(func.avg(func.abs(Transaction.amount))).filter(active_transaction_condition(Transaction)),
         start_date,
         end_date,
     ).scalar() or 0
 
     expense_category_rows = _apply_transaction_date_filters(
         db.query(
-            Category.name.label("category"),
+            Category.name.label("category_name"),
             func.sum(func.abs(Transaction.amount)).label("total"),
         )
-        .join(Category, Transaction.category_id == Category.id)
-        .filter(Transaction.is_deleted != True, Category.type == "expense"),
+        .outerjoin(Category, Transaction.category_id == Category.id)
+        .filter(active_transaction_condition(Transaction), Transaction.amount < 0),
         start_date,
         end_date,
     ).group_by(Category.name).all()
 
     category_summary = [
         {
-            "category": row.category,
+            "category": row.category_name or "Uncategorized",
             "total": float(row.total or 0),
         }
         for row in expense_category_rows
@@ -109,41 +142,163 @@ def admin_analytics(
 
     highest_expense = _apply_transaction_date_filters(
         db.query(Transaction, Category.name.label("category_name"))
-        .join(Category, Transaction.category_id == Category.id)
-        .filter(Transaction.is_deleted != True, Category.type == "expense"),
+        .outerjoin(Category, Transaction.category_id == Category.id)
+        .filter(active_transaction_condition(Transaction), Transaction.amount < 0),
         start_date,
         end_date,
     ).order_by(func.abs(Transaction.amount).desc(), Transaction.date.desc()).first()
 
-    monthly_rows = _apply_transaction_date_filters(
-        db.query(
-            func.year(Transaction.date).label("year"),
-            func.month(Transaction.date).label("month"),
-            Category.type.label("type"),
-            func.sum(Transaction.amount).label("total"),
-        )
-        .join(Category, Transaction.category_id == Category.id)
-        .filter(Transaction.is_deleted != True),
-        start_date,
-        end_date,
-    ).group_by(
-        func.year(Transaction.date),
-        func.month(Transaction.date),
-        Category.type,
-    ).order_by(
-        func.year(Transaction.date),
-        func.month(Transaction.date),
-    ).all()
+    txn_type_expr = case(
+        (Transaction.amount >= 0, "income"),
+        else_="expense",
+    )
 
-    monthly_summary = [
-        {
-            "year": row.year,
-            "month": row.month,
-            "type": row.type,
-            "total": float(abs(row.total or 0) if row.type == "expense" else (row.total or 0)),
-        }
-        for row in monthly_rows
-    ]
+    if normalized_granularity == "day":
+        bucket_date = _bucket_date_expression(db).label("bucket_date")
+        period_rows = _apply_transaction_date_filters(
+            db.query(
+                bucket_date,
+                txn_type_expr.label("type"),
+                func.sum(Transaction.amount).label("total"),
+            )
+            .filter(active_transaction_condition(Transaction)),
+            start_date,
+            end_date,
+        ).group_by(
+            bucket_date,
+            txn_type_expr,
+        ).order_by(bucket_date).all()
+
+        monthly_summary = []
+        for row in period_rows:
+            bucket = _normalize_bucket_date(row.bucket_date)
+            if not bucket:
+                continue
+            monthly_summary.append(
+                {
+                    "year": bucket.year,
+                    "month": bucket.month,
+                    "day": bucket.day,
+                    "bucketType": "day",
+                    "bucketStartKey": bucket.isoformat(),
+                    "type": row.type,
+                    "total": float(abs(row.total or 0) if row.type == "expense" else (row.total or 0)),
+                    "label": bucket.strftime("%d %b"),
+                    "bucket": bucket.isoformat(),
+                }
+            )
+    elif normalized_granularity == "week":
+        period_rows = _apply_transaction_date_filters(
+            db.query(
+                Transaction.date,
+                Transaction.amount,
+            )
+            .filter(active_transaction_condition(Transaction)),
+            start_date,
+            end_date,
+        ).all()
+
+        weekly_buckets = {}
+        for row in period_rows:
+            if not row.date:
+                continue
+            bucket_start = row.date - timedelta(days=row.date.weekday())
+            bucket_start = bucket_start.replace(hour=0, minute=0, second=0, microsecond=0)
+            bucket_key = bucket_start.date().isoformat()
+            bucket_end = bucket_start + timedelta(days=6)
+            bucket = weekly_buckets.setdefault(bucket_key, {
+                "year": bucket_start.year,
+                "month": bucket_start.month,
+                "day": bucket_start.day,
+                "bucketType": "week",
+                "type": "income" if row.amount >= 0 else "expense",
+                "income": 0,
+                "expense": 0,
+                "total": 0,
+                "bucket": bucket_key,
+                "label": f"{bucket_start.strftime('%d %b')} – {bucket_end.strftime('%d %b')}",
+            })
+            if row.amount >= 0:
+                bucket["income"] += float(row.amount or 0)
+            else:
+                bucket["expense"] += abs(float(row.amount or 0))
+            bucket["total"] += float(row.amount or 0)
+            bucket["type"] = "expense" if row.amount < 0 else bucket["type"] or "income"
+
+        monthly_summary = []
+        for key, bucket in sorted(weekly_buckets.items()):
+            if bucket["income"] > 0:
+                monthly_summary.append({
+                    "year": bucket["year"],
+                    "month": bucket["month"],
+                    "day": bucket["day"],
+                    "bucketType": "week",
+                    "bucketStartKey": key,
+                    "type": "income",
+                    "total": float(bucket["income"]),
+                    "label": bucket["label"],
+                    "bucket": key,
+                })
+            if bucket["expense"] > 0:
+                monthly_summary.append({
+                    "year": bucket["year"],
+                    "month": bucket["month"],
+                    "day": bucket["day"],
+                    "bucketType": "week",
+                    "bucketStartKey": key,
+                    "type": "expense",
+                    "total": float(bucket["expense"]),
+                    "label": bucket["label"],
+                    "bucket": key,
+                })
+    else:
+        year_expr, month_expr = _year_month_expressions(db)
+        period_rows = _apply_transaction_date_filters(
+            db.query(
+                year_expr.label("year"),
+                month_expr.label("month"),
+                func.sum(case((Transaction.amount >= 0, Transaction.amount), else_=0)).label("income_total"),
+                func.sum(case((Transaction.amount < 0, func.abs(Transaction.amount)), else_=0)).label("expense_total"),
+            )
+            .filter(active_transaction_condition(Transaction)),
+            start_date,
+            end_date,
+        ).group_by(
+            year_expr,
+            month_expr,
+        ).order_by(
+            year_expr,
+            month_expr,
+        ).all()
+
+        monthly_summary = []
+        for row in period_rows:
+            year = int(row.year)
+            month = int(row.month)
+            key = f"{year}-{month:02d}"
+            label = datetime(year, month, 1).strftime("%b %Y")
+            if row.income_total:
+                monthly_summary.append({
+                    "year": year,
+                    "month": month,
+                    "bucketType": "month",
+                    "bucketStartKey": key,
+                    "type": "income",
+                    "total": float(row.income_total or 0),
+                    "label": label,
+                    "bucket": key,
+                })
+            if row.expense_total:
+                monthly_summary.append({
+                    "year": year,
+                    "month": month,
+                    "bucketType": "month",
+                    "bucketStartKey": key,
+                    "type": "expense",
+                    "total": float(row.expense_total or 0),
+                    "label": label,
+                    "bucket": key,
+                })
 
     transaction_count = base_query.count()
 
@@ -151,10 +306,10 @@ def admin_analytics(
         day_span = max((end_date.date() - start_date.date()).days + 1, 1)
     else:
         day_span = _apply_transaction_date_filters(
-            db.query(func.count(func.distinct(cast(Transaction.date, Date)))),
+            db.query(func.count(func.distinct(_bucket_date_expression(db)))),
             start_date,
             end_date,
-        ).filter(Transaction.is_deleted != True).scalar() or 0
+        ).filter(active_transaction_condition(Transaction)).scalar() or 0
         if not day_span:
             day_span = 1
 
@@ -163,7 +318,12 @@ def admin_analytics(
     trend_direction = "Stable"
     monthly_by_period = {}
     for item in monthly_summary:
-        key = f"{item['year']}-{item['month']:02d}"
+        key = item.get("bucketStartKey") or item.get("bucket")
+        if not key:
+            if item.get("day"):
+                key = f"{item['year']}-{item['month']:02d}-{item['day']:02d}"
+            else:
+                key = f"{item['year']}-{item['month']:02d}"
         monthly_by_period.setdefault(key, {"income": 0, "expense": 0})
         monthly_by_period[key][item["type"]] = item["total"]
 
@@ -191,7 +351,7 @@ def admin_analytics(
 
     user_join_conditions = [
         Transaction.user_id == User.id,
-        Transaction.is_deleted != True,
+        active_transaction_condition(Transaction),
     ]
     if start_date:
         user_join_conditions.append(Transaction.date >= start_date)
@@ -206,19 +366,18 @@ def admin_analytics(
             func.count(Transaction.id).label("transaction_count"),
             func.sum(
                 case(
-                    (Category.type == "income", Transaction.amount),
+                    (Transaction.amount > 0, Transaction.amount),
                     else_=0,
                 )
             ).label("income_total"),
             func.sum(
                 case(
-                    (Category.type == "expense", func.abs(Transaction.amount)),
+                    (Transaction.amount < 0, func.abs(Transaction.amount)),
                     else_=0,
                 )
             ).label("expense_total"),
         )
         .outerjoin(Transaction, and_(*user_join_conditions))
-        .outerjoin(Category, Transaction.category_id == Category.id)
         .group_by(User.id, User.name, User.email)
         .order_by(func.count(Transaction.id).desc(), User.name.asc())
         .all()
@@ -423,7 +582,7 @@ def get_user_transactions(
 
     query = db.query(Transaction).filter(
         Transaction.user_id == user_id,
-        Transaction.is_deleted != True
+        active_transaction_condition(Transaction)
     )
     filters = {}
     

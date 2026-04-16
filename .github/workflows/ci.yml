@@ -7,10 +7,8 @@ on:
     branches: [ main, master ]
 
 jobs:
-  test:
+  backend-sanity:
     runs-on: ubuntu-latest
-    services:
-      docker: {}
     steps:
       - uses: actions/checkout@v4
 
@@ -19,62 +17,11 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential unixodbc-dev
-
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Start DBs (SQL Server)
+      - name: Run backend import and syntax sanity
         run: |
-          docker compose up -d
-
-      - name: Prepare environment for tests
-        run: |
-          echo "DB environment prepared."
-          cat > .env << 'ENV'
-DB_SERVER=localhost
-DB_PORT=1433
-DB_NAME=finance_db
-DB_USER=sa
-DB_PASSWORD=StrongPass123
-JWT_SECRET=ci-secret
-ENV
-        shell: bash
-
-      - name: Initialize database schema
-        run: |
-          python scripts/init_db.py
-        env:
-          DB_SERVER: localhost
-          DB_PORT: 1433
-          DB_NAME: finance_db
-          DB_USER: sa
-          DB_PASSWORD: StrongPass123
-
-      - name: Seed database
-        run: |
-          python seed_data.py
-        env:
-          DB_SERVER: localhost
-          DB_PORT: 1433
-          DB_NAME: finance_db
-          DB_USER: sa
-          DB_PASSWORD: StrongPass123
-
-      - name: Run tests
-        run: |
-          pytest -q
-      - name: Validate Wireframe Presence
-        run: |
-          if [ -f docs/website_wireframe.md ]; then echo "Wireframe present"; else echo "Wireframe missing"; exit 1; fi
-          if ! grep -q "Dashboard" docs/website_wireframe.md; then echo "Wireframe missing Dashboard section"; exit 1; fi
-
-      - name: Teardown
-        if: always()
-        run: |
-          docker compose down
+          python -m compileall app

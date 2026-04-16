@@ -6,6 +6,7 @@ from app.core.deps import get_db
 from app.core.auth import get_current_user, create_access_token
 from app.core.rate_limit import (
     login_rate_limiter,
+    signup_rate_limiter,
     password_reset_attempt_limiter,
     password_reset_request_limiter,
 )
@@ -22,14 +23,14 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 @router.post("/signup")
 def signup(data: UserCreate, db: Session = Depends(get_db)):
     normalized_email = user_service.normalize_email(data.email)
-    if login_rate_limiter.is_blocked(normalized_email):
+    if signup_rate_limiter.is_blocked(normalized_email):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Too many signup attempts. Please try again later."
         )
     user = user_service.signup(db, data.name, data.email, data.password)
     token = create_access_token({"sub": str(user.id)})
-    login_rate_limiter.reset(normalized_email)
+    signup_rate_limiter.reset(normalized_email)
     return success_response(data={
         "access_token": token,
         "token_type": "bearer",
@@ -51,14 +52,14 @@ def login(data: UserLogin, db: Session = Depends(get_db)):
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Too many login attempts. Please try again later."
         )
-    
-    result = user_service.login(db, data.email, data.password)
-    
-    if "access_token" in result:
-        login_rate_limiter.reset(normalized_email)
-    else:
+
+    try:
+        result = user_service.login(db, data.email, data.password)
+    except HTTPException:
         login_rate_limiter.record_attempt(normalized_email)
-    
+        raise
+
+    login_rate_limiter.reset(normalized_email)
     return success_response(data=result)
 
 
@@ -101,7 +102,10 @@ def forgot_password(data: ForgotPassword, db: Session = Depends(get_db)):
     
     if not email_sent:
         if should_log_reset_code():
-            logger.warning("Password reset email not sent. Code for %s: %s", normalized_email, code)
+            logger.warning(
+                "Password reset email not sent for %s; verification code stored securely",
+                normalized_email,
+            )
         else:
             logger.warning("Password reset email could not be delivered for %s", normalized_email)
     
