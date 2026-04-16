@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, UTC
 from typing import Any
 from jose import jwt
 import bcrypt
+import logging
 from fastapi import HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
@@ -17,6 +18,7 @@ from app.core.deps import get_db
 from app.repositories import user_repo
 
 security = HTTPBearer()
+logger = logging.getLogger(__name__)
 
 
 def verify_password(plain: str, hashed: str) -> bool:
@@ -49,8 +51,7 @@ def get_current_user(
             raise HTTPException(status_code=401, detail="Invalid token")
         user_id = int(str(user_id))
     except Exception as e:
-        # Debug output left intentionally lightweight to avoid noisy logs in prod
-        print(f"DEBUG - Error: {str(e)}")
+        logger.debug("Failed to decode auth token: %s", e)
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
     user = user_repo.get_user_by_id(db, user_id)

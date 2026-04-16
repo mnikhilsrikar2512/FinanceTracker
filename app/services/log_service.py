@@ -1,11 +1,10 @@
 """Logging service for audit trails."""
-from datetime import datetime
-from datetime import timezone
 import json
 import threading
 
 from app.core.database import SessionLocal
 from app.models.audit_log import AuditLog
+from app.core.timezone import utc_now_naive
 
 _audit_config = {
     "enabled": True,
@@ -14,7 +13,7 @@ _audit_config = {
 
 def log_action(action, user_id, payload=None, entity_type=None, entity_id=None, level="INFO", request_id=None):
     try:
-        timestamp = datetime.now(timezone.utc).replace(tzinfo=None)
+        timestamp = utc_now_naive()
         payload_json = json.dumps(payload or {}, default=str)
         
         def _async_insert():

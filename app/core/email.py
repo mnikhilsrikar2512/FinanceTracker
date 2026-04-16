@@ -6,12 +6,17 @@ import json
 import shutil
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 import random
 import string
 import logging
 from pathlib import Path
+import tempfile
 import httpx
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from app.models.password_reset_code import ResetStoreBase, PasswordResetCode
 
 logger = logging.getLogger(__name__)
 
@@ -34,63 +39,144 @@ def generate_verification_code(length: int = 6) -> str:
 
 
 class VerificationCodeStore:
-    """In-memory store for verification codes (use Redis for production)"""
+    """SQLite-backed verification code store with expiry and retry tracking."""
     
-    def __init__(self, expiry_minutes: int = 15, resend_cooldown_seconds: int = 60):
-        self.codes = {}
-        self.last_requested_at = {}
+    def __init__(
+        self,
+        expiry_minutes: int = 15,
+        resend_cooldown_seconds: int = 60,
+        storage_path: str | Path | None = None,
+    ):
         self.expiry_minutes = expiry_minutes
         self.resend_cooldown_seconds = resend_cooldown_seconds
+        self.storage_path = Path(
+            storage_path
+            or os.getenv("PASSWORD_RESET_STORE_PATH")
+            or (Path(tempfile.gettempdir()) / "finly_password_resets.sqlite3")
+        )
+        self._engine = create_engine(
+            f"sqlite:///{self.storage_path}",
+            connect_args={"check_same_thread": False},
+            pool_pre_ping=True,
+            future=True,
+        )
+        self._session_factory = sessionmaker(bind=self._engine, autoflush=False, autocommit=False, future=True)
+        ResetStoreBase.metadata.create_all(bind=self._engine)
+
+    def _now(self) -> datetime:
+        return datetime.now(UTC).replace(tzinfo=None)
+
+    def _get_session(self):
+        return self._session_factory()
+
+    def _upsert_record(self, email: str):
+        session = self._get_session()
+        try:
+            record = session.query(PasswordResetCode).filter(PasswordResetCode.email == email).one_or_none()
+            if record is None:
+                record = PasswordResetCode(email=email)
+                session.add(record)
+            return session, record
+        except Exception:
+            session.close()
+            raise
 
     def record_request(self, email: str):
-        self.last_requested_at[email] = datetime.now()
+        session, record = self._upsert_record(email)
+        try:
+            record.requested_at = self._now()
+            session.commit()
+        finally:
+            session.close()
 
     def clear_request_lock(self, email: str):
-        self.last_requested_at.pop(email, None)
+        session = self._get_session()
+        try:
+            record = session.query(PasswordResetCode).filter(PasswordResetCode.email == email).one_or_none()
+            if record is not None:
+                record.requested_at = None
+                session.commit()
+        finally:
+            session.close()
 
     def get_resend_wait_seconds(self, email: str) -> int:
-        last_requested_at = self.last_requested_at.get(email)
-        if not last_requested_at:
-            return 0
-        retry_at = last_requested_at + timedelta(seconds=self.resend_cooldown_seconds)
-        return max(0, int((retry_at - datetime.now()).total_seconds()))
-    
+        session = self._get_session()
+        try:
+            record = session.query(PasswordResetCode).filter(PasswordResetCode.email == email).one_or_none()
+            if not record or not record.requested_at:
+                return 0
+            retry_at = record.requested_at + timedelta(seconds=self.resend_cooldown_seconds)
+            return max(0, int((retry_at - self._now()).total_seconds()))
+        finally:
+            session.close()
+
     def generate_code(self, email: str) -> str:
         code = generate_verification_code()
-        now = datetime.now()
-        expiry = now + timedelta(minutes=self.expiry_minutes)
-        self.last_requested_at[email] = now
-        self.codes[email] = {
-            "code": code,
-            "expires_at": expiry,
-            "attempts": 0
-        }
-        return code
-    
+        session, record = self._upsert_record(email)
+        try:
+            now = self._now()
+            record.code = code
+            record.attempts = 0
+            record.requested_at = now
+            record.expires_at = now + timedelta(minutes=self.expiry_minutes)
+            session.commit()
+            return code
+        finally:
+            session.close()
+
     def verify_code(self, email: str, code: str) -> bool:
-        if email not in self.codes:
+        session = self._get_session()
+        try:
+            record = session.query(PasswordResetCode).filter(PasswordResetCode.email == email).one_or_none()
+            if not record:
+                return False
+
+            if record.expires_at and self._now() > record.expires_at:
+                session.delete(record)
+                session.commit()
+                return False
+
+            if record.attempts >= 5:
+                return False
+
+            if record.code == code:
+                session.delete(record)
+                session.commit()
+                return True
+
+            record.attempts += 1
+            session.commit()
             return False
-        
-        stored = self.codes[email]
-        
-        if datetime.now() > stored["expires_at"]:
-            del self.codes[email]
-            return False
-        
-        if stored["attempts"] >= 5:
-            return False
-        
-        if stored["code"] == code:
-            del self.codes[email]
-            return True
-        
-        stored["attempts"] += 1
-        return False
-    
+        finally:
+            session.close()
+
     def get_remaining_attempts(self, email: str) -> int:
-        if email not in self.codes:
-            return 5
-        return max(0, 5 - self.codes[email]["attempts"])
+        session = self._get_session()
+        try:
+            record = session.query(PasswordResetCode).filter(PasswordResetCode.email == email).one_or_none()
+            if not record:
+                return 5
+            return max(0, 5 - int(record.attempts or 0))
+        finally:
+            session.close()
+
+    def clear(self, email: str):
+        session = self._get_session()
+        try:
+            record = session.query(PasswordResetCode).filter(PasswordResetCode.email == email).one_or_none()
+            if record is not None:
+                session.delete(record)
+                session.commit()
+        finally:
+            session.close()
+
+    def clear_all(self):
+        session = self._get_session()
+        try:
+            session.query(PasswordResetCode).delete()
+            session.commit()
+        finally:
+            session.close()
 
 
 verification_store = VerificationCodeStore()

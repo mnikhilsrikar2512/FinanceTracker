@@ -1,15 +1,15 @@
 """Finance Tracker API - Main entrypoint.
 This module wires routers, middleware, and error handling for the backend API.
-Frontend hosting is removed for local development and testing by default."""
-from fastapi import FastAPI, Request, Response, APIRouter
-from fastapi.responses import RedirectResponse
+"""
+from pathlib import Path
+
+from fastapi import FastAPI, Request, APIRouter
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.cors import CORSMiddleware
-from starlette.types import ASGIApp
 import uuid
 import time
-from pathlib import Path
 
 import app.models
 from app.routers import analytics_router
@@ -27,13 +27,15 @@ from app.core.exceptions import (
     app_exception_handler,
     generic_exception_handler,
 )
+from app.core.config import settings
 from app.core.rate_limit import RateLimiter
 from app.services.log_service import setup_logging
+from app.core.dev_bootstrap import seed_dev_data
 import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-FRONTEND_DIR = Path(__file__).resolve().parent.parent / "Project"
+FRONTEND_DIR = Path(__file__).resolve().parent.parent / "Frontend"
 
 
 class RequestIDMiddleware(BaseHTTPMiddleware):
@@ -85,6 +87,9 @@ app.include_router(api_v1)
 class APIVersionRewriteMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         path = request.url.path
+        passthrough_paths = {"/", "/health", "/login", "/app", "/admin", "/docs", "/openapi.json", "/redoc"}
+        if path in passthrough_paths:
+            return await call_next(request)
         legacy_prefixes = (
             "/auth",
             "/users",
@@ -114,21 +119,33 @@ class APIVersionRewriteMiddleware(BaseHTTPMiddleware):
             return RedirectResponse(url=new_url, status_code=307)
         return await call_next(request)
 
+
+class APICacheControlMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        if request.url.path.startswith("/api/"):
+            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+        return response
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=settings.CORS_ALLOWED_ORIGINS,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # Register the API versioning rewrite middleware
 app.add_middleware(APIVersionRewriteMiddleware)
+app.add_middleware(APICacheControlMiddleware)
 
 app.add_middleware(RequestIDMiddleware)
 app.add_middleware(RateLimiter, requests_per_minute=60)
 
 setup_logging()
+seed_dev_data()
 
 app.add_exception_handler(StarletteHTTPException, http_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
@@ -146,7 +163,88 @@ def health_check():
     return {"status": "OK"}
 
 
+@app.get("/")
+def root():
+    return FileResponse(FRONTEND_DIR / "index.html")
+
+
+@app.get("/index.html")
+def root_html():
+    return FileResponse(FRONTEND_DIR / "index.html")
+
+
+@app.get("/login")
+def login_page():
+    return FileResponse(FRONTEND_DIR / "login.html")
+
+
+@app.get("/login.html")
+def login_page_html():
+    return FileResponse(FRONTEND_DIR / "login.html")
+
+
+@app.get("/signup")
+def signup_page():
+    return FileResponse(FRONTEND_DIR / "signup.html")
+
+
+@app.get("/signup.html")
+def signup_page_html():
+    return FileResponse(FRONTEND_DIR / "signup.html")
+
+
+@app.get("/forgot-password")
+def forgot_password_page():
+    return FileResponse(FRONTEND_DIR / "forgot-password.html")
+
+
+@app.get("/forgot-password.html")
+def forgot_password_page_html():
+    return FileResponse(FRONTEND_DIR / "forgot-password.html")
+
+
+@app.get("/reset-password")
+def reset_password_page():
+    return FileResponse(FRONTEND_DIR / "reset-password.html")
+
+
+@app.get("/reset-password.html")
+def reset_password_page_html():
+    return FileResponse(FRONTEND_DIR / "reset-password.html")
+
+
+@app.get("/support")
+def support_page():
+    return FileResponse(FRONTEND_DIR / "support.html")
+
+
+@app.get("/support.html")
+def support_page_html():
+    return FileResponse(FRONTEND_DIR / "support.html")
+
+
+@app.get("/app")
+def app_page():
+    return FileResponse(FRONTEND_DIR / "app.html")
+
+
+@app.get("/app.html")
+def app_page_html():
+    return FileResponse(FRONTEND_DIR / "app.html")
+
+
+@app.get("/admin")
+def admin_page():
+    return FileResponse(FRONTEND_DIR / "admin.html")
+
+
+@app.get("/admin.html")
+def admin_page_html():
+    return FileResponse(FRONTEND_DIR / "admin.html")
+
+
 if FRONTEND_DIR.exists():
-    app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
+    app.mount("/scripts", StaticFiles(directory=str(FRONTEND_DIR / "scripts")), name="frontend-scripts")
+    app.mount("/styles", StaticFiles(directory=str(FRONTEND_DIR / "styles")), name="frontend-styles")
 else:
-    logger.warning("Frontend directory missing, static hosting disabled", extra={"path": str(FRONTEND_DIR)})
+    logger.warning("Frontend directory missing; static frontend routes are disabled", extra={"path": str(FRONTEND_DIR)})

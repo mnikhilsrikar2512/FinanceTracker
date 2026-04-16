@@ -1,10 +1,9 @@
 """SQLAlchemy model for application audit logs."""
 
-from datetime import datetime
-
 from sqlalchemy import Column, DateTime, Index, Integer, String, Text
 
 from app.core.database import Base
+from app.core.timezone import utc_now_naive
 
 
 class AuditLog(Base):
@@ -19,8 +18,8 @@ class AuditLog(Base):
     level = Column(String(20), nullable=False, default="INFO", index=True)
     request_id = Column(String(120), nullable=True, index=True)
     payload_json = Column(Text, nullable=True)
-    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    timestamp = Column(DateTime, default=utc_now_naive, nullable=False, index=True)
+    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
 
     __table_args__ = (
         Index("idx_audit_user_timestamp", "user_id", "timestamp"),

@@ -35,6 +35,12 @@ def get_monthly_summary(db: Session, user_id: int):
     return analytics_repo.get_monthly_summary(db, user_id)
 
 
-def get_monthly_summary_filtered(db: Session, user_id: int, start_date: datetime = None, end_date: datetime = None):
+def get_monthly_summary_filtered(
+    db: Session,
+    user_id: int,
+    start_date: datetime = None,
+    end_date: datetime = None,
+    granularity: str = "month"
+):
     validate_user(db, user_id)
-    return analytics_repo.get_monthly_summary_filtered(db, user_id, start_date, end_date)
+    return analytics_repo.get_monthly_summary_filtered(db, user_id, start_date, end_date, granularity)

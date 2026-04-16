@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
+    <title>Finly | Sign in</title>
+    <link rel="stylesheet" href="./styles/tokens.css" />
+    <link rel="stylesheet" href="./styles/base.css" />
+    <link rel="stylesheet" href="./styles/layout.css" />
+    <link rel="stylesheet" href="./styles/components.css" />
+  </head>
+  <body class="auth-page">
+    <main class="auth-layout">
+      <section class="auth-hero glass-panel">
+        <div class="auth-brand">
+          <span class="brand-mark" aria-hidden="true">F</span>
+          <div>
+            <p class="eyebrow">Secure sign in</p>
+            <h1>Sign in to a finance workspace that stays calm under pressure.</h1>
+          </div>
+        </div>
+
+        <p class="auth-copy">
+          Access dashboards, transactions, budgets, reports, and admin tools from one structured workspace
+          built for clarity on desktop and mobile.
+        </p>
+
+        <div class="hero-points" aria-label="Workspace benefits">
+          <span class="pill">Role aware</span>
+          <span class="pill">Fast exports</span>
+          <span class="pill">Live summaries</span>
+          <span class="pill">API backed</span>
+        </div>
+
+        <div class="auth-highlights">
+          <article class="mini-stat">
+            <span>Designed for</span>
+            <strong>Users and admins</strong>
+            <p>One sign-in flow routes each role to the right workspace.</p>
+          </article>
+          <article class="mini-stat">
+            <span>Need help?</span>
+            <strong>support@visionyle.com</strong>
+            <p>Use the support page for onboarding and recovery help.</p>
+          </article>
+        </div>
+
+        <div class="hero-note">
+          <strong>Why this feels faster</strong>
+          <p>Important data is grouped, filters are compact, and dialogs only appear when they are needed.</p>
+        </div>
+      </section>
+
+      <section class="auth-card glass-panel">
+        <div class="auth-card-header">
+          <p class="eyebrow">Finly workspace</p>
+          <h2>Welcome back</h2>
+          <p>Use your email and password to continue where you left off.</p>
+          <div class="toolbar">
+            <a class="button button-ghost" href="./support.html">Support</a>
+            <button type="button" class="button button-ghost" data-action="toggle-theme">Light mode</button>
+          </div>
+        </div>
+
+        <form id="login-form" class="auth-form">
+          <label class="field">
+            <span>Email</span>
+            <input name="email" type="email" placeholder="admin@financetracker.com" autocomplete="email" required />
+          </label>
+          <label class="field">
+            <span>Password</span>
+            <input name="password" type="password" placeholder="Enter your password" autocomplete="current-password" required />
+          </label>
+          <label class="field field-inline">
+            <input name="remember" type="checkbox" checked />
+            <span>Keep me signed in on this device</span>
+          </label>
+          <button class="button button-primary button-block" type="submit">Enter workspace</button>
+          <p class="auth-footnote">For shared devices, keep this option off to protect your session.</p>
+          <div class="toolbar">
+            <a class="button button-ghost" href="./signup.html">Create account</a>
+            <a class="button button-ghost" href="./forgot-password.html">Reset password</a>
+          </div>
+        </form>
+      </section>
+    </main>
+
+    <div id="toast-root" class="toast-root" aria-live="polite" aria-atomic="true"></div>
+    <script type="module" src="./scripts/login.js"></script>
+  </body>
+</html>

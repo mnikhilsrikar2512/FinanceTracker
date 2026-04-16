@@ -12,6 +12,8 @@ from app.models.user import User
 from app.models.category import Category
 from app.models.transaction import Transaction
 from app.services.log_service import log_action
+from app.core.timezone import utc_now_naive
+from app.core.transaction_filters import active_transaction_condition
 import csv
 import io
 
@@ -117,7 +119,7 @@ def get_transactions(
     elif normalized_archive_filter == "all":
         pass
     else:
-        query = query.filter(Transaction.is_deleted != True)
+        query = query.filter(active_transaction_condition(Transaction))
 
     filters["archive_filter"] = normalized_archive_filter
     
@@ -240,7 +242,7 @@ def get_recent_transactions(
 ):
     txns = db.query(Transaction).filter(
         Transaction.user_id == current_user.id,
-        Transaction.is_deleted != True
+        active_transaction_condition(Transaction)
     ).order_by(Transaction.date.desc()).limit(limit).all()
     
     data = [enrich_transaction(t, db) for t in txns]
@@ -277,7 +279,7 @@ def bulk_restore_transactions(
         if txn.is_deleted:
             txn.is_deleted = False
             txn.modified_by = current_user.id
-            txn.modified_at = datetime.utcnow()
+            txn.modified_at = utc_now_naive()
             restored_count += 1
 
     db.commit()
@@ -452,12 +454,12 @@ def restore_transaction(
         raise HTTPException(status_code=404, detail="Transaction not found")
     if txn.user_id != current_user.id and getattr(current_user, 'role', None) != 'admin':
         raise HTTPException(status_code=403, detail="You can only restore your own transactions")
-    if txn.is_deleted != True:
+    if txn.is_deleted is not True:
         return success_response(message="Transaction is already active", data=enrich_transaction(txn, db))
 
     txn.is_deleted = False
     txn.modified_by = current_user.id
-    txn.modified_at = datetime.utcnow()
+    txn.modified_at = utc_now_naive()
     db.commit()
     db.refresh(txn)
     enriched = enrich_transaction(txn, db)
@@ -486,16 +488,24 @@ def export_transactions(
     category_id: int = Query(default=None, description="Filter by category ID"),
     start_date: datetime = Query(default=None, description="Start date"),
     end_date: datetime = Query(default=None, description="End date"),
+    search: str = Query(default=None, description="Search in description or category"),
+    archive_filter: str = Query(default="active", description="Archive filter: active, archived, all"),
     format: str = Query(default="csv", description="Export format: csv")
 ):
     # RBAC: Admins can export all; regular users can export only their own
     if getattr(current_user, 'role', None) == 'admin':
-        query = db.query(Transaction).filter(Transaction.is_deleted != True)
+        query = db.query(Transaction)
     else:
-        query = db.query(Transaction).filter(
-            Transaction.user_id == current_user.id,
-            Transaction.is_deleted != True
-        )
+        query = db.query(Transaction).filter(Transaction.user_id == current_user.id)
+
+    normalized_archive_filter = str(archive_filter or "active").lower()
+    if normalized_archive_filter not in {"active", "archived", "all"}:
+        raise HTTPException(status_code=400, detail="Invalid archive_filter. Use active, archived, or all.")
+
+    if normalized_archive_filter == "archived":
+        query = query.filter(Transaction.is_deleted == True)
+    elif normalized_archive_filter == "active":
+        query = query.filter(active_transaction_condition(Transaction))
     
     if type:
         cat_type = "income" if type.lower() == "income" else "expense"
@@ -509,6 +519,16 @@ def export_transactions(
     
     if end_date:
         query = query.filter(Transaction.date <= end_date)
+
+    if search:
+        search_term = search.strip()
+        if search_term:
+            query = query.outerjoin(Category, Transaction.category_id == Category.id).filter(
+                or_(
+                    Transaction.description.ilike(f"%{search_term}%"),
+                    Category.name.ilike(f"%{search_term}%")
+                )
+            )
     
     txns = query.order_by(Transaction.date.desc()).all()
     

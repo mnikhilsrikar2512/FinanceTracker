@@ -5,6 +5,7 @@ from datetime import date, datetime
 from app.models.budget import Budget
 from app.models.transaction import Transaction
 from app.models.category import Category
+from app.core.timezone import utc_now_naive
 
 def create_budget(db: Session, user_id: int, budget_data):
     budget = Budget(
@@ -32,10 +33,10 @@ def update_budget(db: Session, budget_id: int, user_id: int, update_data):
     if not budget:
         return None
     
-    for field, value in update_data.dict(exclude_unset=True).items():
+    for field, value in update_data.model_dump(exclude_unset=True).items():
         setattr(budget, field, value)
     
-    budget.updated_at = datetime.utcnow()
+    budget.updated_at = utc_now_naive()
     db.commit()
     db.refresh(budget)
     return budget

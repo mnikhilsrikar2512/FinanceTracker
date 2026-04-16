@@ -1,7 +1,7 @@
 """User ORM model."""
 from sqlalchemy import Column, Integer, String, DateTime
-from datetime import datetime
 from app.core.database import Base
+from app.core.timezone import utc_now_naive
 
 class User(Base):
     __tablename__ = "users"
@@ -12,4 +12,4 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     status = Column(String(20), default="active")
     role = Column(String(20), default="user")
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now_naive)
