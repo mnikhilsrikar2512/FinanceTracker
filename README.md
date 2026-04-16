@@ -2,6 +2,18 @@
 
 Finly is a fullstack finance operations app with role-based user and admin workspaces, analytics, logs, budgeting, and polished CSV/PDF exports.
 
+## About
+
+Finly is designed as a practical finance cockpit for both daily users and platform admins.
+
+- **Users** manage transactions, budgets, and personal reporting in one workspace.
+- **Admins** supervise users, system activity, categories, logs, and platform-level analytics.
+- **Exports** provide clean CSV/PDF handoff for reviews, reporting, and audits.
+
+GitHub About (short description suggestion):
+
+`Role-based finance tracker with FastAPI, admin/user dashboards, analytics, logs, and polished CSV/PDF exports.`
+
 ## Overview
 
 Finly helps teams and individuals:
