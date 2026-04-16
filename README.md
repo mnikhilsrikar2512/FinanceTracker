@@ -6,6 +6,18 @@
 Finly unifies day-to-day finance execution and admin oversight in one clean workspace.  
 Users manage transactions, budgets, and reports, while admins monitor users, activity logs, and system trends with export-ready outputs.
 
+## About
+
+Finly is designed as a practical finance cockpit for both daily users and platform admins.
+
+- **Users** manage transactions, budgets, and personal reporting in one workspace.
+- **Admins** supervise users, system activity, categories, logs, and platform-level analytics.
+- **Exports** provide clean CSV/PDF handoff for reviews, reporting, and audits.
+
+GitHub About (short description suggestion):
+
+`Role-based finance tracker with FastAPI, admin/user dashboards, analytics, logs, and polished CSV/PDF exports.`
+
 ## Overview
 
 Finly helps teams and individuals:
