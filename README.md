@@ -1,6 +1,6 @@
 # Finly
 
-### Role-based finance tracker with FastAPI, admin/user dashboards, analytics, logs, budgets, and polished CSV/PDF exports.
+### Full-stack finance management system with FastAPI backend, role-based dashboards, analytics, and reporting.
 
 ## 🚀 Elevator Pitch
 Finly unifies day-to-day finance execution and admin oversight in one clean workspace.  
