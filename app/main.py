@@ -14,7 +14,7 @@ import time
 import app.models
 from app.routers import analytics_router
 
-from app.routers import user_router, category_router, transaction_router, log_router, auth_router, admin_router, budget_router
+from app.routers import user_router, category_router, transaction_router, log_router, auth_router, admin_router, budget_router, assistant_router
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError, OperationalError
@@ -68,7 +68,7 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
 
 app = FastAPI()
 
-from app.routers import auth_router, user_router, category_router, transaction_router, log_router, analytics_router, admin_router, budget_router
+from app.routers import auth_router, user_router, category_router, transaction_router, log_router, analytics_router, admin_router, budget_router, assistant_router
 # All API routes are migrated under /api/v1. /api is a redirect alias to /api/v1
 
 # API versioning: expose same endpoints under /api/v1
@@ -81,6 +81,7 @@ api_v1.include_router(log_router.router)
 api_v1.include_router(analytics_router.router)
 api_v1.include_router(admin_router.router)
 api_v1.include_router(budget_router.router)
+api_v1.include_router(assistant_router.router)
 app.include_router(api_v1)
 
 """API versioning middleware and routes."""
@@ -99,6 +100,7 @@ class APIVersionRewriteMiddleware(BaseHTTPMiddleware):
             "/summary",
             "/admin",
             "/budgets",
+            "/assistant",
         )
         # Redirect base /api to /api/v1
         if path == "/api":

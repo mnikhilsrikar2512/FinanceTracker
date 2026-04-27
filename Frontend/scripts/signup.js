@@ -28,7 +28,7 @@ async function handleSubmit(event) {
       body: { name, email, password },
       token: null,
     });
-    toast("Account created", "Check your email for a verification code if your backend requires it.", "success");
+    toast("Account created", "Your account is ready. Sign in to continue.", "success");
     window.setTimeout(() => {
       window.location.href = "./login.html";
     }, 700);

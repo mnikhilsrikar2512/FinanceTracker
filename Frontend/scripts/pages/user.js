@@ -662,7 +662,7 @@ function renderBudgetCards(budgets = [], options = {}) {
   if (!budgets.length) {
     return emptyState(
       "No budgets yet",
-      "Create a budget to track category-level spending.",
+      options.emptyMessage || "Create a budget to track category-level spending.",
       options.emptyAction || button("Create Budget", { variant: "primary", attrs: 'data-action="open-create-budget"' }),
     );
   }
@@ -2003,6 +2003,7 @@ export const userWorkspace = {
         const budgets = Array.isArray(data.budgets) ? data.budgets : [];
         const budgetSummary = Array.isArray(data.budgetSummary) ? data.budgetSummary : [];
         const categories = Array.isArray(data.categories) ? data.categories : [];
+        const canCreateBudget = categories.length > 0;
         const budgetRows = joinBudgetRows(budgets, budgetSummary, categories);
         const totalBudgeted = budgetRows.reduce((sum, item) => sum + Number(item.amount || 0), 0);
         const totalSpent = budgetRows.reduce((sum, item) => sum + Number(item.spent || 0), 0);
@@ -2011,7 +2012,9 @@ export const userWorkspace = {
           ${hero(
             "Budget planner",
             "Create budgets, track progress, and spot overspend quickly.",
-            `${button("Create budget", { variant: "primary", attrs: 'data-action="open-create-budget"' })}`,
+            canCreateBudget
+              ? `${button("Create budget", { variant: "primary", attrs: 'data-action="open-create-budget"' })}`
+              : `${button("Create budget", { variant: "secondary", attrs: 'disabled aria-disabled="true" title="No categories available"' })}`,
           )}
           <section class="cards-grid">
             ${metricCard({ label: "Total budgeted", value: formatINR(totalBudgeted), trend: { value: 6, kind: "up" }, hint: "All active plans", icon: "↦" })}
@@ -2027,13 +2030,19 @@ export const userWorkspace = {
               </div>
             </div>
             ${renderBudgetCards(budgetRows, {
+              emptyMessage: canCreateBudget
+                ? "Create a budget to track category-level spending."
+                : "No categories are available. Ask an admin to create categories first.",
+              emptyAction: canCreateBudget
+                ? button("Create Budget", { variant: "primary", attrs: 'data-action="open-create-budget"' })
+                : button("No categories available", { variant: "secondary", attrs: 'disabled aria-disabled="true" title="Ask an admin to create categories"' }),
             })}
           </section>
         `;
       },
       bind: (root, data, ctx) => {
         const categories = Array.isArray(data.categories) ? data.categories : [];
-        root.querySelector("[data-action='open-create-budget']")?.addEventListener("click", () => {
+        const openCreateBudget = () => {
           if (!categories.length) {
             ctx.toast("No categories", "Create at least one category before creating a budget.", "warning");
             return;
@@ -2068,6 +2077,10 @@ export const userWorkspace = {
               ctx.toast("Could not save", error.message, "danger");
             }
           });
+        };
+
+        root.querySelectorAll("[data-action='open-create-budget']").forEach((buttonEl) => {
+          buttonEl.addEventListener("click", openCreateBudget);
         });
 
         root.querySelectorAll("[data-action='delete-budget']").forEach((buttonEl) => {

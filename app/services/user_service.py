@@ -3,6 +3,7 @@ from fastapi import HTTPException
 from app.repositories import user_repo
 from app.services.log_service import log_action
 from app.core.auth import get_password_hash, verify_password, create_access_token
+from app.core.config import settings
 
 
 def normalize_email(email: str) -> str:
@@ -42,7 +43,12 @@ def login(db: Session, email: str, password: str):
     if user.status == "blocked":
         raise HTTPException(status_code=403, detail="User is blocked")
 
-    token = create_access_token({"sub": str(user.id)})
+    token = create_access_token({
+        "sub": str(user.id),
+        "user_id": str(user.id),
+        "role": str(user.role or "user"),
+        "tenant_id": settings.JWT_TENANT_ID,
+    })
 
     log_action(
         action="USER_LOGIN",

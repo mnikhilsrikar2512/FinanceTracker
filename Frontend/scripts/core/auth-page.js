@@ -1,25 +1,8 @@
 import { escapeHtml } from "./dom.js";
-import { applyTheme, initTheme, toggleTheme } from "./theme.js";
+import { applyTheme, initTheme } from "./theme.js";
 
 export function initAuthTheme() {
-  const initial = applyTheme(initTheme());
-
-  const syncThemeButtons = (theme) => {
-    document.querySelectorAll('[data-action="toggle-theme"]').forEach((button) => {
-      const nextMode = theme === "dark" ? "Light" : "Dark";
-      button.textContent = `${nextMode} mode`;
-      button.setAttribute("aria-label", `Switch to ${nextMode.toLowerCase()} mode`);
-    });
-  };
-
-  syncThemeButtons(initial);
-
-  document.querySelectorAll('[data-action="toggle-theme"]').forEach((button) => {
-    button.addEventListener("click", () => {
-      const next = toggleTheme();
-      syncThemeButtons(next);
-    });
-  });
+  applyTheme(initTheme());
 }
 
 export function createAuthToast(toastRoot) {

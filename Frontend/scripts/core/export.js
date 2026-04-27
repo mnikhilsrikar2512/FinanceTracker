@@ -205,6 +205,14 @@ function truncatePdfText(value, max = 30) {
   return `${text.slice(0, Math.max(1, max - 1)).trimEnd()}...`;
 }
 
+function pluralize(count, singular, plural = `${singular}s`) {
+  return Number(count) === 1 ? singular : plural;
+}
+
+function verbForCount(count, singularVerb, pluralVerb) {
+  return Number(count) === 1 ? singularVerb : pluralVerb;
+}
+
 function dedupeTextRows(rows = []) {
   const seen = new Set();
   const output = [];
@@ -221,9 +229,9 @@ function dedupeTextRows(rows = []) {
 
 function buildTrendChart(monthlyRows = []) {
   const chartX = 60;
-  const chartY = 170;
+  const chartY = 210;
   const chartW = 500;
-  const chartH = 500;
+  const chartH = 430;
   const rows = monthlyRows.slice(-8);
 
   const incomeValues = rows.map((row) => Number(row.incomeRaw ?? row.income ?? 0));
@@ -247,7 +255,7 @@ function buildTrendChart(monthlyRows = []) {
   const incomePoints = incomeValues.map((value, idx) => toPoint(value, idx, incomeValues.length));
   const expensePoints = expenseValues.map((value, idx) => toPoint(value, idx, expenseValues.length));
 
-  const labels = rows.map((row, idx) => textCmd(String(row.label || `P${idx + 1}`), chartX + (chartW * idx) / Math.max(rows.length - 1, 1) - 10, chartY - 18, 8));
+  const labels = rows.map((row, idx) => textCmd(String(row.label || `P${idx + 1}`), chartX + (chartW * idx) / Math.max(rows.length - 1, 1) - 10, chartY - 22, 8));
 
   const yLabels = [0, 1, 2, 3, 4].map((idx) => {
     const value = max - (max * idx) / 4;
@@ -281,12 +289,12 @@ function buildSpendingMixPage(categories = []) {
   const lines = [textCmd("Spending Mix", 44, 740, 19), lineCmd(44, 730, 568, 730, 0.8, [0.86, 0.88, 0.92])];
   const palette = ["#2563eb", "#f97316", "#0f172a", "#64748b", "#94a3b8", "#cbd5e1", "#e2e8f0", "#dbeafe"];
   const cx = 306;
-  const cy = 500;
+  const cy = 492;
   const outerR = 146;
   const innerR = 92;
   let angle = -Math.PI / 2;
 
-  lines.push(rectCmd(110, 280, 392, 460, [0.9, 0.92, 0.95], [0.985, 0.99, 0.997]));
+  lines.push(rectCmd(110, 208, 392, 492, [0.9, 0.92, 0.95], [0.985, 0.99, 0.997]));
 
   rows.forEach((row, index) => {
     const share = Number(row.rawValue ?? row.value ?? 0) / total;
@@ -297,15 +305,15 @@ function buildSpendingMixPage(categories = []) {
   });
 
   const totalFormatted = rows.reduce((sum, row) => sum + Number(row.rawValue ?? 0), 0);
-  lines.push(textCmd(`INR ${new Intl.NumberFormat("en-IN", { notation: "compact", maximumFractionDigits: 1 }).format(totalFormatted)}`, 260, 496, 18));
-  lines.push(textCmd("Total spend", 274, 474, 10));
+  lines.push(textCmd(`INR ${new Intl.NumberFormat("en-IN", { notation: "compact", maximumFractionDigits: 1 }).format(totalFormatted)}`, 260, 488, 18));
+  lines.push(textCmd("Total spend", 274, 466, 10));
 
   rows.forEach((row, index) => {
-    const legendY = 246 - index * 20;
+    const legendY = 278 - index * 18;
     const pct = Math.round((Number(row.rawValue ?? row.value ?? 0) / total) * 100);
     lines.push(rectCmd(120, legendY - 6, 8, 8, rgb(palette[index % palette.length]), rgb(palette[index % palette.length])));
     lines.push(textCmd(truncatePdfText(String(row.label || "Category"), 28), 136, legendY, 10));
-    lines.push(textCmd(`${row.value} (${pct}%)`, 380, legendY, 10));
+    lines.push(textCmd(`${row.value} (${pct}%)`, 400, legendY, 10));
   });
   return lines.join("\n");
 }
@@ -398,7 +406,7 @@ export function downloadFinancialReportPdf(filename, payload = {}) {
       ? "Period-over-period net movement is unavailable."
       : `Period-over-period net moved ${netDeltaRaw >= 0 ? "up" : "down"} by INR ${new Intl.NumberFormat("en-IN").format(Math.abs(netDeltaRaw))}.`,
     `Spend ratio for this range: ${ratioMetric}.`,
-    `Category coverage in report: ${topCategories.length} categories.`,
+    `Category coverage in report: ${topCategories.length} ${pluralize(topCategories.length, "category", "categories")}.`,
     `Monthly points included: ${monthlyRows.length}.`,
   ]).slice(0, 5);
 
@@ -471,12 +479,12 @@ export function downloadFinancialReportPdf(filename, payload = {}) {
 
   page2.push(sectionTitle("Summary", 244));
   page2.push(...wrappedTextCmds(
-    `Total tracked spend is INR ${new Intl.NumberFormat("en-IN").format(totalSpendRaw)} and current spend ratio is ${ratioMetric}. Showing top ${categoryRowsForTable.length} categories and latest ${monthlyRowsForTable.length} periods.${latestRow ? ` Latest month (${latestRow.label}) closes at ${latestRow.net}.` : ""}`,
+    `Total tracked spend is INR ${new Intl.NumberFormat("en-IN").format(totalSpendRaw)} and current spend ratio is ${ratioMetric}. Showing top ${categoryRowsForTable.length} ${pluralize(categoryRowsForTable.length, "category", "categories")} and latest ${monthlyRowsForTable.length} ${pluralize(monthlyRowsForTable.length, "period")}.${latestRow ? ` Latest month (${latestRow.label}) closes at ${latestRow.net}.` : ""}`,
     { x: 44, y: 220, size: 10, lineHeight: 14, maxChars: 92, maxLines: 3 },
   ));
 
   const page3 = [buildTrendChart(monthlyRows)];
-  page3.push(sectionTitle("Trend Notes", 126));
+  page3.push(sectionTitle("Trend Notes", 110));
   page3.push(...bulletListCmds([
     latestRow ? `Latest period ${latestRow.label}: net ${latestRow.net}.` : "Latest period data unavailable.",
     netDeltaRaw == null
@@ -484,15 +492,16 @@ export function downloadFinancialReportPdf(filename, payload = {}) {
       : `Period-over-period net change: ${netDeltaRaw >= 0 ? "up" : "down"} by INR ${new Intl.NumberFormat("en-IN").format(Math.abs(netDeltaRaw))}.`,
     `Average inflow is ${inflowMetric}; average outflow is ${outflowMetric}.`,
     monthlyRows.length < 3 ? "Trend is based on limited monthly points; add more periods for deeper slope quality." : "",
-  ], { x: 44, y: 102, size: 10, lineHeight: 12, maxChars: 90, maxRows: 6 }));
+  ], { x: 44, y: 86, size: 10, lineHeight: 12, maxChars: 90, maxRows: 6 }));
 
   const page4 = [buildSpendingMixPage(categoryRowsForTable)];
-  page4.push(sectionTitle("Actionable Summary", 126));
+  page4.push(sectionTitle("Actionable Summary", 108));
+  const topCoverageCount = Math.min(3, topCategories.length);
   page4.push(...bulletListCmds([
     topCategory ? `${topCategory.label} remains the largest cost center at ${topCategory.value}.` : "No dominant category identified.",
-    `Top ${Math.min(3, topCategories.length)} categories account for a majority of spend in this range.`,
+    `Top ${topCoverageCount} ${pluralize(topCoverageCount, "category", "categories")} ${verbForCount(topCoverageCount, "accounts", "account")} for a majority of spend in this range.`,
     "Use this mix with monthly trend to rebalance budgets and spending controls.",
-  ], { x: 44, y: 102, size: 10, lineHeight: 12, maxChars: 90, maxRows: 6 }));
+  ], { x: 44, y: 84, size: 10, lineHeight: 12, maxChars: 90, maxRows: 6 }));
 
   const pages = [page1.join("\n"), page2.join("\n"), page3.join("\n"), page4.join("\n")];
   const totalPages = pages.length;

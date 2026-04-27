@@ -12,6 +12,7 @@ from app.core.rate_limit import (
 )
 from app.core.email import verification_store, send_verification_code, should_log_reset_code
 from app.core.response import success_response
+from app.core.config import settings
 from app.repositories import user_repo
 import logging
 
@@ -29,7 +30,12 @@ def signup(data: UserCreate, db: Session = Depends(get_db)):
             detail="Too many signup attempts. Please try again later."
         )
     user = user_service.signup(db, data.name, data.email, data.password)
-    token = create_access_token({"sub": str(user.id)})
+    token = create_access_token({
+        "sub": str(user.id),
+        "user_id": str(user.id),
+        "role": str(user.role or "user"),
+        "tenant_id": settings.JWT_TENANT_ID,
+    })
     signup_rate_limiter.reset(normalized_email)
     return success_response(data={
         "access_token": token,
@@ -103,8 +109,9 @@ def forgot_password(data: ForgotPassword, db: Session = Depends(get_db)):
     if not email_sent:
         if should_log_reset_code():
             logger.warning(
-                "Password reset email not sent for %s; verification code stored securely",
+                "Password reset email not sent for %s; temporary verification code: %s",
                 normalized_email,
+                code,
             )
         else:
             logger.warning("Password reset email could not be delivered for %s", normalized_email)

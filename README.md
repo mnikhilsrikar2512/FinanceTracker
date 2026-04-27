@@ -111,9 +111,15 @@ This command will:
 ## Documentation
 
 - Project documentation: `docs/PROJECT_DOCUMENTATION.md`
+- Engineering documentation: `docs/ENGINEERING_DOCUMENTATION.md`
+- API contract: `docs/API_CONTRACT.md`
+- Azure deployment runbook: `docs/azure-deploy.md`
 - Frontend notes: `Frontend/README.md`
 
 ## Notes
 
 - Currency presentation in UI and exports is INR-focused.
 - If static changes do not appear, hard refresh (`Cmd + Shift + R`).
+- To proxy assistant requests to external chatbot API, set `ASSISTANT_API_BASE_URL` and choose auth via `ASSISTANT_API_AUTH_MODE` (`website_jwt`, `token`, `login`, `dev`, `auto`).
+- Finly JWT now includes `tenant_id`, `user_id`, and `role` claims (with `JWT_TENANT_ID`) for external chatbot JWT passthrough.
+- External chatbot integration calls `/v1/chat` directly (session auto-created by chatbot API when omitted).

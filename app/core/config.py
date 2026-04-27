@@ -16,6 +16,20 @@ def _split_csv(value: str | None) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
+def _as_bool(value: str | None, default: bool) -> bool:
+    if value is None:
+        return default
+    return str(value).strip().lower() not in {"0", "false", "no", "off"}
+
+
+def _as_float(value: str | None, default: float) -> float:
+    try:
+        parsed = float(str(value).strip()) if value is not None else default
+    except (TypeError, ValueError):
+        return default
+    return parsed if parsed > 0 else default
+
+
 def get_cors_allowed_origins(
     app_env: str | None = None,
     origins: str | None = None,
@@ -52,6 +66,16 @@ class Settings:
             raise RuntimeError("JWT_SECRET is required outside development/test environments")
     JWT_ALGORITHM = "HS256"
     JWT_EXPIRE_MINUTES = 60 * 24
+    JWT_TENANT_ID = os.getenv("JWT_TENANT_ID", "tnt_demo").strip() or "tnt_demo"
     CORS_ALLOWED_ORIGINS = get_cors_allowed_origins(APP_ENV)
+    ASSISTANT_API_BASE_URL = os.getenv("ASSISTANT_API_BASE_URL", "").strip()
+    ASSISTANT_API_TOKEN = os.getenv("ASSISTANT_API_TOKEN", "").strip()
+    ASSISTANT_API_AUTH_MODE = os.getenv("ASSISTANT_API_AUTH_MODE", "auto").strip().lower()
+    ASSISTANT_API_TENANT_ID = os.getenv("ASSISTANT_API_TENANT_ID", "tnt_demo").strip() or "tnt_demo"
+    ASSISTANT_API_LOGIN_TENANT_ID = os.getenv("ASSISTANT_API_LOGIN_TENANT_ID", "").strip()
+    ASSISTANT_API_LOGIN_EMAIL = os.getenv("ASSISTANT_API_LOGIN_EMAIL", "").strip()
+    ASSISTANT_API_LOGIN_PASSWORD = os.getenv("ASSISTANT_API_LOGIN_PASSWORD", "").strip()
+    ASSISTANT_API_TIMEOUT_SECONDS = _as_float(os.getenv("ASSISTANT_API_TIMEOUT_SECONDS"), 15.0)
+    ASSISTANT_API_VERIFY_TLS = _as_bool(os.getenv("ASSISTANT_API_VERIFY_TLS"), True)
 
 settings = Settings()
