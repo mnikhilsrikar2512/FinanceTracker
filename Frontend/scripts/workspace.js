@@ -1,10 +1,10 @@
-import { apiRequest, clearSession, normalizeDetail, readSession, writeSession } from "./core/api.js";
-import { escapeHtml } from "./core/dom.js";
-import { formatClock, formatHeaderDate } from "./core/format.js";
-import { initTheme, applyTheme } from "./core/theme.js";
-import { loadingState } from "./core/ui.js";
-import { adminWorkspace } from "./pages/admin.js";
-import { userWorkspace } from "./pages/user.js";
+import { apiRequest, clearSession, normalizeDetail, readSession, writeSession } from "./core/api.js?v=20260507j";
+import { escapeHtml } from "./core/dom.js?v=20260507j";
+import { formatClock, formatHeaderDate } from "./core/format.js?v=20260507j";
+import { initTheme, applyTheme } from "./core/theme.js?v=20260507j";
+import { loadingState } from "./core/ui.js?v=20260507j";
+import { adminWorkspace } from "./pages/admin.js?v=20260507j";
+import { userWorkspace } from "./pages/user.js?v=20260507j";
 
 const scriptEl = document.querySelector("script[data-workspace]");
 const workspaceType = scriptEl?.dataset.workspace === "admin" ? "admin" : "user";
@@ -18,26 +18,13 @@ const MOBILE_LAYOUT_QUERY = "(max-width: 760px)";
 document.body.classList.add(workspaceType === "admin" ? "workspace-admin" : "workspace-user");
 document.body.classList.remove("auth-page");
 
-const CHATBOT_ENABLED = false;
 const state = {
   me: null,
   currentSection: null,
   currentData: null,
   currentPage: null,
   loadingToken: 0,
-  // chatbot integration has been disabled to revert to built-in/static responses
 };
-
-const CHATBOT_ENDPOINT = "/assistant/chat";
-const CHATBOT_ENDPOINT_KEY = "finly.chatbot.endpoint";
-const CHATBOT_TENANT_KEY = "finly.chatbot.tenantId";
-const CHATBOT_TOKEN_KEY = "finly.chatbot.authToken";
-const CHATBOT_SESSION_KEY = "finly.chatbot.sessionId";
-const CHATBOT_STRICT_KEY = "finly.chatbot.strictGrounding";
-const CHATBOT_VERBOSE_KEY = "finly.chatbot.verbose";
-const CHATBOT_STREAM_KEY = "finly.chatbot.stream";
-const CHATBOT_HISTORY_KEY_PREFIX = "finly.chatbot.history";
-const CHATBOT_MAX_MESSAGES = 40;
 
 function toast(title, message, tone = "neutral") {
   const node = document.createElement("div");
@@ -158,10 +145,7 @@ function openModal({ title, content, note = "" }) {
       </div>
       <div class="modal-body popup-content">${content}</div>
     </section>
-  ${CHATBOT_ENABLED ? `
-    <!-- chatbot UI removed; reverting to no built-in chatbot UI -->
-  ` : ""}
- `;
+  `;
 
   modalRoot
     .querySelector(".popup-window")
@@ -241,13 +225,13 @@ function renderShell() {
               <span class="topbar-action-icon" data-sidebar-icon aria-hidden="true">◧</span>
               <span class="topbar-action-label" data-sidebar-label>Collapse</span>
             </button>
-              <div class="topbar-heading">
-                <p class="eyebrow">Workspace</p>
-                <div class="workspace-title-row">
-                  <strong class="workspace-status header-page-title">${escapeHtml(initialPage?.title ?? workspace.contextLabel)}</strong>
-                </div>
-                <span class="workspace-context">${escapeHtml(workspace.contextLabel)}</span>
+            <div class="topbar-heading">
+              <p class="eyebrow">Workspace</p>
+              <div class="workspace-title-row">
+                <strong class="workspace-status header-page-title">${escapeHtml(initialPage?.title ?? workspace.contextLabel)}</strong>
               </div>
+              <span class="workspace-context">${escapeHtml(workspace.contextLabel)}</span>
+            </div>
           </div>
           <div class="topbar-right">
             <span class="pill">
@@ -268,22 +252,8 @@ function renderShell() {
         </section>
       </main>
     </div>
-    
-  `;
 
-  // Lightweight logo adornment for chatbot header (option 1)
-  try {
-    const panelTitleEl = root.querySelector(".chatbot-head .panel-title");
-    if (panelTitleEl) {
-      panelTitleEl.insertAdjacentHTML(
-        "afterbegin",
-        `<span class=\"cb-logo\" aria-label=\"Finly chatbot logo\"><img src=\"/assets/chatbot-logo.svg\" alt=\"Finly logo\" width=\"20\" height=\"20\" style=\"vertical-align:middle; margin-right:6px;\" onerror=\"this.onerror=null; this.src=\"data:image/svg+xml;utf8,<svg xmlns=\\\"http://www.w3.org/2000/svg\\\" width=\\\"20\\\" height=\\\"20\\\" viewBox=\\\"0 0 24 24\\\" fill=\\\"none\\\" stroke=\\\"currentColor\\\" stroke-width=\\\"2\\\"><path d=\\\"M4 7h12a4 4 0 0 1 0 8H6l-4 4V7z\\\"/><circle cx=\\\"18\\\" cy=\\\"9\\\" r=\\\"1\\\" fill=\\\"currentColor\\\"/></svg>\"\""/>
-        Finly Assistant`
-      );
-    }
-  } catch {
-    // ignore if chatbot header isn't present
-  }
+  `;
 
   document.querySelectorAll("[data-nav]").forEach((link) => {
     link.addEventListener("click", () => {
@@ -296,604 +266,6 @@ function renderShell() {
   syncNavState();
   syncSidebarState();
   updateShellControls();
-}
-
-function chatbotElements() {
-  return {
-    shell: root.querySelector("[data-chatbot-shell]"),
-    panel: root.querySelector("[data-chatbot-panel]"),
-    toggle: root.querySelector("[data-chatbot-toggle]"),
-    close: root.querySelector("[data-chatbot-close]"),
-    clear: root.querySelector("[data-chatbot-clear]"),
-    status: root.querySelector("[data-chatbot-status]"),
-    messages: root.querySelector("[data-chatbot-messages]"),
-    form: root.querySelector("[data-chatbot-form]"),
-    input: root.querySelector("[data-chatbot-form] input[name='message']"),
-    send: root.querySelector("[data-chatbot-send]"),
-    prompts: [...root.querySelectorAll("[data-chatbot-prompt]")],
-    promptsWrap: root.querySelector("[data-chatbot-prompts]"),
-  };
-}
-
-function chatbotHistoryKey() {
-  const userPart = state.me?.id ?? state.me?.email ?? "guest";
-  return `${CHATBOT_HISTORY_KEY_PREFIX}.${workspaceType}.${userPart}`;
-}
-
-function loadChatbotHistory() {
-  try {
-    const raw = localStorage.getItem(chatbotHistoryKey());
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .filter((item) => item && typeof item === "object")
-      .map((item) => ({
-        role: item.role === "user" ? "user" : "assistant",
-        text: String(item.text || "").trim(),
-        ts: Number(item.ts || Date.now()),
-        meta: item.meta && typeof item.meta === "object" ? item.meta : {},
-      }))
-      .filter((item) => item.text)
-      .slice(-CHATBOT_MAX_MESSAGES);
-  } catch {
-    return [];
-  }
-}
-
-function saveChatbotHistory() {
-  try {
-    localStorage.setItem(chatbotHistoryKey(), JSON.stringify(state.chatbot.messages.slice(-CHATBOT_MAX_MESSAGES)));
-  } catch {
-    // best-effort persistence
-  }
-}
-
-function resolveChatbotEndpoint() {
-  const globalOverride = typeof window !== "undefined" ? window.FINLY_CHATBOT_ENDPOINT : "";
-  const localOverride = localStorage.getItem(CHATBOT_ENDPOINT_KEY);
-  const selected = String(globalOverride || localOverride || CHATBOT_ENDPOINT).trim();
-  return selected || CHATBOT_ENDPOINT;
-}
-
-function resolveChatbotTenant() {
-  const value = String(localStorage.getItem(CHATBOT_TENANT_KEY) || state.chatbot.tenantId || "tnt_demo").trim();
-  return value || "tnt_demo";
-}
-
-function resolveChatbotAuthToken() {
-  return String(localStorage.getItem(CHATBOT_TOKEN_KEY) || "").trim();
-}
-
-function resolveStoredChatbotSessionId() {
-  return String(localStorage.getItem(CHATBOT_SESSION_KEY) || "").trim();
-}
-
-function resolveChatbotStrictGrounding() {
-  const value = localStorage.getItem(CHATBOT_STRICT_KEY);
-  if (value == null) return true;
-  return value !== "0";
-}
-
-function resolveChatbotVerbose() {
-  return localStorage.getItem(CHATBOT_VERBOSE_KEY) === "1";
-}
-
-function resolveChatbotStream() {
-  return localStorage.getItem(CHATBOT_STREAM_KEY) === "1";
-}
-
-function storeChatbotConfig({ endpoint, tenantId, authToken, sessionId }) {
-  if (endpoint !== undefined) localStorage.setItem(CHATBOT_ENDPOINT_KEY, String(endpoint || CHATBOT_ENDPOINT).trim());
-  if (tenantId !== undefined) localStorage.setItem(CHATBOT_TENANT_KEY, String(tenantId || "tnt_demo").trim());
-  if (authToken !== undefined) {
-    const token = String(authToken || "").trim();
-    if (token) localStorage.setItem(CHATBOT_TOKEN_KEY, token);
-    else localStorage.removeItem(CHATBOT_TOKEN_KEY);
-  }
-  if (sessionId !== undefined) {
-    const next = String(sessionId || "").trim();
-    if (next) localStorage.setItem(CHATBOT_SESSION_KEY, next);
-    else localStorage.removeItem(CHATBOT_SESSION_KEY);
-  }
-}
-
-function normalizeAuthorization(token) {
-  const raw = String(token || "").trim();
-  if (!raw) return "";
-  if (/^bearer\s+/i.test(raw)) return raw;
-  return `Bearer ${raw}`;
-}
-
-function defaultDevToken() {
-  const tenant = state.chatbot.tenantId || "tnt_demo";
-  const userId = String(state.me?.id || "2");
-  const role = String(state.me?.role || "user");
-  return `Bearer tenant:${tenant}|user:${userId}|role:${role}`;
-}
-
-function isExternalV1ChatEndpoint(endpoint) {
-  const value = String(endpoint || "").toLowerCase();
-  return /^https?:\/\//.test(value) && value.includes("/v1/chat");
-}
-
-function chatbotPromptsForWorkspace() {
-  if (workspaceType === "admin") {
-    return ["Open users", "Show categories", "give me overall platform overview for all users"];
-  }
-  return ["Open budgets", "How to export report?", "gve my acnt overveiw and hw to do bttr"];
-}
-
-function renderChatbotPrompts() {
-  const { promptsWrap } = chatbotElements();
-  if (!promptsWrap) return;
-  const prompts = chatbotPromptsForWorkspace();
-  promptsWrap.innerHTML = prompts
-    .map((prompt) => `<button type="button" class="button button-ghost" data-chatbot-prompt="${escapeHtml(prompt)}">${escapeHtml(prompt)}</button>`)
-    .join("");
-}
-
-function updateChatbotStatus() {
-  const { status } = chatbotElements();
-  if (!status) return;
-  const mode = state.chatbot.source === "api" ? "External" : "Local";
-  status.textContent = mode;
-  status.setAttribute("title", state.chatbot.source === "api" ? `Connected to ${state.chatbot.endpoint}` : "Fallback mode");
-}
-
-function pushChatbotMessage(role, text, meta = {}) {
-  const value = String(text || "").trim();
-  if (!value) return;
-  state.chatbot.messages.push({
-    role: role === "user" ? "user" : "assistant",
-    text: value,
-    ts: Date.now(),
-    meta: meta && typeof meta === "object" ? meta : {},
-  });
-  state.chatbot.messages = state.chatbot.messages.slice(-CHATBOT_MAX_MESSAGES);
-  saveChatbotHistory();
-}
-
-function formatChatbotMeta(meta = {}) {
-  const badges = [];
-  if (Number.isFinite(Number(meta.confidence))) {
-    badges.push(`Confidence ${Math.round(Number(meta.confidence) * 100)}%`);
-  }
-  if (meta.model) badges.push(`Model ${meta.model}`);
-  if (Number.isFinite(Number(meta.citations)) && Number(meta.citations) > 0) {
-    badges.push(`${meta.citations} citation${Number(meta.citations) === 1 ? "" : "s"}`);
-  }
-  if (Number.isFinite(Number(meta.warnings)) && Number(meta.warnings) > 0) {
-    badges.push(`${meta.warnings} warning${Number(meta.warnings) === 1 ? "" : "s"}`);
-  }
-  if (meta.needsClarification) {
-    badges.push("Needs clarification");
-  }
-  if (Array.isArray(meta.missingData) && meta.missingData.length) {
-    badges.push(`Missing ${meta.missingData.length} field${meta.missingData.length === 1 ? "" : "s"}`);
-  }
-  if (meta.traceId) badges.push(`Trace ${meta.traceId}`);
-  return badges;
-}
-
-function renderChatbotMessages() {
-  const { messages } = chatbotElements();
-  if (!messages) return;
-  const rows = state.chatbot.messages
-    .slice(-28)
-    .map((item) => {
-      const tone = item.role === "user" ? "chatbot-user" : "chatbot-assistant";
-      const label = item.role === "user" ? "You" : "Assistant";
-      const badges = item.role === "assistant" ? formatChatbotMeta(item.meta) : [];
-      return `<article class="chatbot-message ${tone}"><span class="section-label">${escapeHtml(label)}</span><p>${escapeHtml(item.text)}</p>${badges.length ? `<div class="chatbot-meta">${badges.map((badge) => `<span class="chatbot-meta-pill">${escapeHtml(badge)}</span>`).join("")}</div>` : ""}</article>`;
-    });
-  if (state.chatbot.typing) {
-    rows.push('<article class="chatbot-message chatbot-assistant chatbot-message-typing"><span class="section-label">Assistant</span><p><span class="chatbot-dot"></span><span class="chatbot-dot"></span><span class="chatbot-dot"></span></p></article>');
-  }
-  messages.innerHTML = rows.join("");
-  messages.scrollTop = messages.scrollHeight;
-}
-
-function setChatbotPending(value) {
-  state.chatbot.pending = Boolean(value);
-  state.chatbot.typing = state.chatbot.pending;
-  const { send, input, prompts, clear } = chatbotElements();
-  if (send) send.disabled = state.chatbot.pending;
-  if (input) input.disabled = state.chatbot.pending;
-  prompts.forEach((button) => {
-    button.disabled = state.chatbot.pending;
-  });
-  if (clear) clear.disabled = state.chatbot.pending;
-  renderChatbotMessages();
-}
-
-function setChatbotOpen(next) {
-  state.chatbot.open = Boolean(next);
-  const { shell, panel, toggle, input } = chatbotElements();
-  shell?.classList.toggle("chatbot-open", state.chatbot.open);
-  if (panel) panel.hidden = !state.chatbot.open;
-  if (toggle) toggle.setAttribute("aria-expanded", state.chatbot.open ? "true" : "false");
-  if (state.chatbot.open) {
-    input?.focus();
-    renderChatbotMessages();
-  }
-}
-
-function fallbackChatbotReply(message) {
-  const text = String(message || "").toLowerCase();
-  if (text.includes("open budget") || text.includes("budget")) {
-    return { reply: "Opened Budgets. You can create or review plans from this section.", navigateTo: "budgets" };
-  }
-  if (text.includes("open profile") || text.includes("profile")) {
-    return { reply: "Opened Profile. You can update your account details here.", navigateTo: "profile" };
-  }
-  if (text.includes("export") && text.includes("report")) {
-    return { reply: "Opened Reports. Use the export actions there for CSV or PDF downloads.", navigateTo: "reports" };
-  }
-  if (text.includes("transaction")) {
-    return { reply: "Opened Transactions. You can add, filter, and review entries in this table.", navigateTo: "transactions" };
-  }
-  if (text.includes("admin") && workspaceType !== "admin") {
-    return { reply: "You are in user workspace. Sign in with an admin account to access admin pages.", navigateTo: null };
-  }
-  const pageTitle = state.currentPage?.title || "this section";
-  return {
-    reply: `I can help with navigation and quick tips. Try: Open budgets, Open profile, or Export report. You are currently on ${pageTitle}.`,
-    navigateTo: null,
-  };
-}
-
-function navigateFromChatbot(target) {
-  const section = String(target || "").trim();
-  if (!section || !workspace.pages[section]) return;
-  window.location.hash = `#${section}`;
-}
-
-function generateIdempotencyKey() {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
-  }
-  return `idmp-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
-}
-
-function parseSseChunks(raw) {
-  const text = String(raw || "");
-  const blocks = text.split("\n\n").map((item) => item.trim()).filter(Boolean);
-  return blocks
-    .map((block) => {
-      const lines = block.split("\n");
-      const eventLine = lines.find((line) => line.startsWith("event:"));
-      const dataLine = lines.find((line) => line.startsWith("data:"));
-      const event = eventLine ? eventLine.slice(6).trim() : "message";
-      const dataRaw = dataLine ? dataLine.slice(5).trim() : "{}";
-      let data = {};
-      try {
-        data = JSON.parse(dataRaw);
-      } catch {
-        data = {};
-      }
-      return { event, data };
-    })
-    .filter((item) => item && item.event);
-}
-
-async function streamExternalChat(endpoint, authHeader, payloadBody) {
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      Accept: "text/event-stream",
-      "Content-Type": "application/json",
-      Authorization: authHeader,
-      "Idempotency-Key": generateIdempotencyKey(),
-    },
-    body: JSON.stringify(payloadBody),
-  });
-
-  if (!response.ok) {
-    const err = await response.json().catch(() => null);
-    const message = err?.error?.message || err?.detail || err?.message || `Chat request failed (${response.status})`;
-    const error = new Error(message);
-    error.status = response.status;
-    throw error;
-  }
-
-  if (!response.body) {
-    return { data: { reply: "No streaming response body received." } };
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let combined = "";
-  let completedEvent = null;
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-
-    const parts = buffer.split("\n\n");
-    buffer = parts.pop() || "";
-    parts.forEach((part) => {
-      parseSseChunks(part).forEach(({ event, data }) => {
-        if (event === "response.delta") {
-          combined += String(data?.delta || "");
-        }
-        if (event === "response.completed") {
-          completedEvent = data;
-        }
-      });
-    });
-  }
-
-  if (buffer.trim()) {
-    parseSseChunks(buffer).forEach(({ event, data }) => {
-      if (event === "response.delta") combined += String(data?.delta || "");
-      if (event === "response.completed") completedEvent = data;
-    });
-  }
-
-  return {
-    data: {
-      reply: completedEvent?.message?.content || combined || "No response generated.",
-      trace_id: completedEvent?.trace_id || null,
-      request_id: completedEvent?.request_id || null,
-      confidence_score: Number(completedEvent?.confidence_score ?? 0),
-      warnings_count: Array.isArray(completedEvent?.warnings) ? completedEvent.warnings.length : 0,
-      citations_count: Array.isArray(completedEvent?.message?.citations) ? completedEvent.message.citations.length : 0,
-      model: completedEvent?.usage?.model || "",
-      needs_clarification: Boolean(completedEvent?.needs_clarification),
-      missing_data_fields: Array.isArray(completedEvent?.missing_data_fields) ? completedEvent.missing_data_fields : [],
-    },
-  };
-}
-
-async function requestChatbot(endpoint, payload) {
-  const isAbsolute = /^https?:\/\//i.test(endpoint);
-  if (!isAbsolute) {
-    return await api(endpoint, { method: "POST", body: payload });
-  }
-
-  if (isExternalV1ChatEndpoint(endpoint)) {
-    const baseUrl = endpoint.replace(/\/v1\/chat\/?$/i, "");
-    const auth = normalizeAuthorization(state.chatbot.authToken) || defaultDevToken();
-    let sessionId = state.chatbot.sessionId;
-
-    if (!sessionId) {
-      const sessionResponse = await fetch(`${baseUrl}/v1/sessions`, {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-          Authorization: auth,
-          "Idempotency-Key": generateIdempotencyKey(),
-        },
-        body: JSON.stringify({
-          tenant_id: state.chatbot.tenantId,
-          user_id: String(state.me?.id || "2"),
-          channel: "web",
-        }),
-      });
-      const sessionPayload = await sessionResponse.json().catch(() => null);
-      if (!sessionResponse.ok) {
-        const msg = sessionPayload?.detail || sessionPayload?.message || "Unable to create chatbot session";
-        throw new Error(msg);
-      }
-      sessionId = String(sessionPayload?.session_id || "");
-      state.chatbot.sessionId = sessionId;
-      storeChatbotConfig({ sessionId });
-    }
-
-    const requestBody = {
-      tenant_id: state.chatbot.tenantId,
-      user_id: String(state.me?.id || "2"),
-      session_id: sessionId,
-      message: {
-        role: "user",
-        content: payload.message,
-      },
-      channel: "web",
-      stream: state.chatbot.stream === true,
-      strict_grounding: payload.strict_grounding !== false,
-      verbose: payload.verbose === true,
-      context: payload.context || {},
-    };
-
-    if (state.chatbot.stream === true) {
-      return await streamExternalChat(endpoint, auth, requestBody);
-    }
-
-    const chatResponse = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        Authorization: auth,
-        "Idempotency-Key": generateIdempotencyKey(),
-      },
-      body: JSON.stringify(requestBody),
-    });
-    const chatPayload = await chatResponse.json().catch(() => null);
-    if (!chatResponse.ok) {
-      const message =
-        chatPayload?.error?.message
-        || chatPayload?.detail
-        || chatPayload?.error
-        || chatPayload?.message
-        || `Chat request failed (${chatResponse.status})`;
-      const error = new Error(message);
-      error.status = chatResponse.status;
-      throw error;
-    }
-    return {
-      data: {
-        reply: chatPayload?.message?.content || chatPayload?.reply || "",
-        trace_id: chatPayload?.trace_id || null,
-        request_id: chatPayload?.request_id || null,
-        confidence_score: Number(chatPayload?.confidence_score ?? 0),
-        warnings_count: Array.isArray(chatPayload?.warnings) ? chatPayload.warnings.length : 0,
-        citations_count: Array.isArray(chatPayload?.message?.citations) ? chatPayload.message.citations.length : 0,
-        model: chatPayload?.usage?.model || "",
-        needs_clarification: Boolean(chatPayload?.needs_clarification),
-        missing_data_fields: Array.isArray(chatPayload?.missing_data_fields) ? chatPayload.missing_data_fields : [],
-      },
-      raw: chatPayload,
-    };
-  }
-
-  const headers = {
-    Accept: "application/json",
-    "Content-Type": "application/json",
-  };
-  if (session?.accessToken) {
-    headers.Authorization = `Bearer ${session.accessToken}`;
-  }
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(payload),
-  });
-  const data = await response.json().catch(() => null);
-  if (!response.ok) {
-    const message = data?.error?.message || data?.error || data?.detail || data?.message || `Chat request failed (${response.status})`;
-    const error = new Error(message);
-    error.status = response.status;
-    throw error;
-  }
-  return data;
-}
-
-function parseChatbotResponse(response) {
-  const data = response?.data ?? response ?? {};
-  const confidenceRaw = data?.confidence_score ?? data?.confidenceScore;
-  const confidence = confidenceRaw === undefined || confidenceRaw === null || confidenceRaw === ""
-    ? null
-    : Number(confidenceRaw);
-  const reply = String(
-    data?.reply
-      ?? data?.message
-      ?? data?.content
-      ?? data?.text
-      ?? response?.message?.content
-      ?? response?.reply
-      ?? response?.message
-      ?? ""
-  ).trim();
-  const navigateTo = String(data?.navigate_to || data?.navigateTo || "").trim() || null;
-  const source = String(data?.source || response?.source || "").trim().toLowerCase() || "fallback";
-  return {
-    reply,
-    navigateTo,
-    source,
-    meta: {
-      confidence,
-      warnings: Number(data?.warnings_count ?? 0),
-      citations: Number(data?.citations_count ?? 0),
-      model: String(data?.model || "").trim(),
-      traceId: String(data?.trace_id || data?.traceId || "").trim(),
-      requestId: String(data?.request_id || data?.requestId || "").trim(),
-      needsClarification: Boolean(data?.needs_clarification ?? data?.needsClarification),
-      missingData: Array.isArray(data?.missing_data_fields) ? data.missing_data_fields : [],
-    },
-  };
-}
-
-async function getChatbotReply(message) {
-  try {
-    const payload = {
-      message,
-      section: state.currentSection,
-      workspace: workspaceType,
-      strict_grounding: state.chatbot.strictGrounding,
-      verbose: state.chatbot.verbose,
-      context: {
-        locale: navigator.language || "en-IN",
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Kolkata",
-      },
-    };
-    const response = await requestChatbot(state.chatbot.endpoint, payload);
-    const parsed = parseChatbotResponse(response);
-    if (parsed.reply) {
-      const externalMode = parsed.source === "external" || isExternalV1ChatEndpoint(state.chatbot.endpoint);
-      state.chatbot.source = externalMode ? "api" : "fallback";
-      updateChatbotStatus();
-      return parsed;
-    }
-  } catch {
-    state.chatbot.source = "fallback";
-    updateChatbotStatus();
-    return fallbackChatbotReply(message);
-  }
-  return fallbackChatbotReply(message);
-}
-
-function ensureChatbotWelcome() {
-  if (state.chatbot.messages.length) return;
-  pushChatbotMessage("assistant", "Hi, I am Finly Assistant. Ask me to open sections or explain common actions.");
-}
-
-async function submitChatbotPrompt(message) {
-  const text = String(message || "").trim();
-  if (!text || state.chatbot.pending) return;
-  pushChatbotMessage("user", text);
-  renderChatbotMessages();
-  setChatbotPending(true);
-  const result = await getChatbotReply(text);
-  if (result?.reply) {
-    pushChatbotMessage("assistant", result.reply, result.meta || {});
-  }
-  if (result?.navigateTo) {
-    navigateFromChatbot(result.navigateTo);
-  }
-  setChatbotPending(false);
-  renderChatbotMessages();
-}
-
-function bindChatbot() {
-  state.chatbot.endpoint = resolveChatbotEndpoint();
-  state.chatbot.tenantId = resolveChatbotTenant();
-  state.chatbot.authToken = resolveChatbotAuthToken();
-  state.chatbot.sessionId = resolveStoredChatbotSessionId();
-  state.chatbot.strictGrounding = resolveChatbotStrictGrounding();
-  state.chatbot.verbose = resolveChatbotVerbose();
-  state.chatbot.stream = resolveChatbotStream();
-  state.chatbot.messages = loadChatbotHistory();
-  renderChatbotPrompts();
-  updateChatbotStatus();
-  ensureChatbotWelcome();
-  renderChatbotMessages();
-  const { toggle, close, clear, form, input } = chatbotElements();
-
-  toggle?.addEventListener("click", () => {
-    setChatbotOpen(!state.chatbot.open);
-  });
-
-  close?.addEventListener("click", () => {
-    setChatbotOpen(false);
-  });
-
-  clear?.addEventListener("click", () => {
-    state.chatbot.messages = [];
-    saveChatbotHistory();
-    ensureChatbotWelcome();
-    renderChatbotMessages();
-  });
-
-  root.querySelector("[data-chatbot-prompts]")?.addEventListener("click", (event) => {
-    const button = event.target instanceof Element ? event.target.closest("[data-chatbot-prompt]") : null;
-    if (!button) return;
-    const prompt = button.getAttribute("data-chatbot-prompt") || "";
-    submitChatbotPrompt(prompt);
-  });
-
-  form?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const text = String(input?.value || "").trim();
-    if (!text) return;
-    if (input) input.value = "";
-    await submitChatbotPrompt(text);
-    input?.focus();
-  });
 }
 
 async function api(path, options = {}) {
@@ -1100,9 +472,6 @@ function bindGlobalEvents() {
       closeModal();
       return;
     }
-    if (event.key === "Escape" && state.chatbot.open) {
-      setChatbotOpen(false);
-    }
   });
 
   window.addEventListener("resize", () => {
@@ -1128,7 +497,6 @@ async function main() {
   if (!ok) return;
   syncSidebarState();
   renderShell();
-  // chatbot integration disabled
   bindGlobalEvents();
   bindSharedActions();
   startClock();
@@ -1144,39 +512,4 @@ async function main() {
 
 main();
 
-// Robust logo fallback: ensure the chatbot logo renders even if asset path fails
-(function ensureChatbotLogo() {
-  const loadLogo = () => {
-    const logoImg = root?.querySelector?.(".cb-logo img");
-    if (!logoImg) return;
-    fetch(logoImg.src, { method: "HEAD" })
-      .then(res => {
-        if (!res.ok) {
-          const span = document.createElement("span");
-          span.innerHTML = '<svg width="20" height="20" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h12a4 4 0 0 1 0 8H6l-4 4V7z"/><circle cx="18" cy="9" r="1" fill="currentColor"/></svg>';
-          logoImg.replaceWith(span);
-        }
-      })
-      .catch(() => {});
-  };
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", loadLogo);
-  } else {
-    loadLogo();
-  }
-})();
-
 export { closeModal };
-// Additional robust fallback for logo if image fails to load (runtime safety)
-(function(){
-  document.addEventListener("DOMContentLoaded", function(){
-    const logo = document.querySelector(".cb-logo img");
-    if (logo) {
-      logo.addEventListener("error", function(){
-        const span = document.createElement("span");
-        span.innerHTML = '<svg width="20" height="20" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h12a4 4 0 0 1 0 8H6l-4 4V7z"/><circle cx="18" cy="9" r="1" fill="currentColor"/></svg>';
-        logo.parentNode.replaceChild(span, logo);
-      });
-    }
-  });
-})();

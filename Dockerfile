@@ -22,6 +22,7 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY Frontend /frontend
+COPY Frontend/assets /frontend/assets
 COPY . .
 
 EXPOSE 8000

@@ -1,5 +1,5 @@
-import { apiRequest, isDemoMode, normalizeDetail, normalizeList } from "../core/api.js";
-import { donutChartSVG, lineChartSVG } from "../core/charts.js";
+import { apiRequest, isDemoMode, normalizeDetail, normalizeList } from "../core/api.js?v=20260507j";
+import { donutChartSVG, lineChartSVG } from "../core/charts.js?v=20260507j";
 import {
   badge,
   button,
@@ -19,9 +19,9 @@ import {
   statusBadge,
   table,
   textareaField,
-} from "../core/ui.js";
-import { escapeHtml } from "../core/dom.js";
-import { downloadCsv, downloadFinancialReportPdf } from "../core/export.js";
+} from "../core/ui.js?v=20260507j";
+import { escapeHtml } from "../core/dom.js?v=20260507j";
+import { downloadCsv, downloadFinancialReportPdf } from "../core/export.js?v=20260507j";
 import {
   formatDate,
   formatDateTime,
@@ -29,14 +29,14 @@ import {
   formatINR,
   formatLongDate,
   timeAgo,
-} from "../core/format.js";
+} from "../core/format.js?v=20260507j";
 import {
   buildFallbackSummary,
   buildFallbackNotifications,
   mockCategories,
   mockProfile,
   mockTransactions,
-} from "../data/mock.js";
+} from "../data/mock.js?v=20260507j";
 
 function fallbackTransactions() {
   return mockTransactions;
@@ -73,13 +73,35 @@ function renderKpis(summary) {
   const income = Number(overview.total_income ?? 0);
   const expense = Number(overview.total_expense ?? 0);
   const balance = Number(overview.balance ?? 0);
+  const isEmpty = income === 0 && expense === 0 && balance === 0;
   return `
     <section class="cards-grid">
-      ${metricCard({ label: "Balance", value: formatINR(balance), trend: { label: "Live", kind: "up" }, hint: "Current available cash", icon: "₹" })}
-      ${metricCard({ label: "Income", value: formatINR(income), trend: { label: "Tracked", kind: "up" }, hint: "Incoming amount this period", icon: "↑" })}
-      ${metricCard({ label: "Expense", value: formatINR(expense), trend: { label: "Tracked", kind: "down" }, hint: "Expenses captured this period", icon: "↓" })}
+      ${metricCard({ label: "Balance", value: formatINR(balance), trend: { label: isEmpty ? "Start here" : "Live", kind: "up" }, hint: isEmpty ? "Add a transaction to start your workspace" : "Current available cash", icon: "₹" })}
+      ${metricCard({ label: "Income", value: formatINR(income), trend: { label: isEmpty ? "Waiting" : "Tracked", kind: "up" }, hint: isEmpty ? "Your inflows will appear after the first entry" : "Incoming amount this period", icon: "↑" })}
+      ${metricCard({ label: "Expense", value: formatINR(expense), trend: { label: isEmpty ? "Waiting" : "Tracked", kind: "down" }, hint: isEmpty ? "Your outflows will appear after the first entry" : "Expenses captured this period", icon: "↓" })}
     </section>
   `;
+}
+
+function chartEmptyState({ title, description, actionLabel, actionTarget, icon = "◎" }) {
+  return `
+    <div class="chart-shell">
+      ${emptyState(
+        title,
+        description,
+        button(actionLabel, { variant: "primary", attrs: `data-go="${actionTarget}"` }),
+        icon,
+      )}
+    </div>
+  `;
+}
+
+function hasMeaningfulSeries(series = []) {
+  return Array.isArray(series) && series.some((item) => Math.abs(Number(item?.value ?? 0)) > 0);
+}
+
+function hasMeaningfulCategories(series = []) {
+  return Array.isArray(series) && series.some((item) => Number(item?.value ?? 0) > 0);
 }
 
 function formatINRExport(value) {
@@ -1235,40 +1257,56 @@ export const userWorkspace = {
             ${panel(
               "Cashflow",
               "Monthly trend",
-              `
-                <div class="chart-shell">
-                  <div class="chart-header">
-                    <span class="pill pill-accent">Updated ${timeAgo(summary.updated_at ?? new Date())}</span>
-                    <span class="pill">${cashflowTrend.label ? escapeHtml(cashflowTrend.label) : `${cashflowTrend.kind === "down" ? "-" : "+"}${cashflowTrend.value}%`}</span>
+              hasMeaningfulSeries(cashflow)
+                ? `
+                  <div class="chart-shell">
+                    <div class="chart-header">
+                      <span class="pill pill-accent">Updated ${timeAgo(summary.updated_at ?? new Date())}</span>
+                      <span class="pill">${cashflowTrend.label ? escapeHtml(cashflowTrend.label) : `${cashflowTrend.kind === "down" ? "-" : "+"}${cashflowTrend.value}%`}</span>
+                    </div>
+                    <div class="chart-canvas">${lineChartSVG(cashflow, { stroke: "#7dd3fc" })}</div>
+                    <div class="chart-legend">
+                      ${cashflowExtrema.high ? `<span class="pill">Peak ${escapeHtml(cashflowExtrema.high.label)} ${escapeHtml(formatINR(cashflowExtrema.high.value))}</span>` : ""}
+                      ${cashflowExtrema.low ? `<span class="pill">Low ${escapeHtml(cashflowExtrema.low.label)} ${escapeHtml(formatINR(cashflowExtrema.low.value))}</span>` : ""}
+                    </div>
+                    <ul class="filter-chips">
+                      ${cashflowRows.map((row) => `<li class="chip"><strong>${escapeHtml(row.label)}</strong> In ${escapeHtml(formatINR(row.income))} · Out ${escapeHtml(formatINR(row.expense))}</li>`).join("")}
+                    </ul>
                   </div>
-                  <div class="chart-canvas">${lineChartSVG(cashflow, { stroke: "#7dd3fc" })}</div>
-                  <div class="chart-legend">
-                    ${cashflowExtrema.high ? `<span class="pill">Peak ${escapeHtml(cashflowExtrema.high.label)} ${escapeHtml(formatINR(cashflowExtrema.high.value))}</span>` : ""}
-                    ${cashflowExtrema.low ? `<span class="pill">Low ${escapeHtml(cashflowExtrema.low.label)} ${escapeHtml(formatINR(cashflowExtrema.low.value))}</span>` : ""}
-                  </div>
-                  <ul class="filter-chips">
-                    ${cashflowRows.map((row) => `<li class="chip"><strong>${escapeHtml(row.label)}</strong> In ${escapeHtml(formatINR(row.income))} · Out ${escapeHtml(formatINR(row.expense))}</li>`).join("")}
-                  </ul>
-                </div>
-              `,
+                `
+                : chartEmptyState({
+                    title: "No cashflow history yet",
+                    description: "Add your first income or expense to unlock the monthly trend and see how money moves over time.",
+                    actionLabel: "Add Transaction",
+                    actionTarget: "transactions",
+                    icon: "↗",
+                  }),
             )}
             ${panel(
               "Spending Mix",
               "Categories",
-              `
-                <div class="chart-shell">
-                  <div class="chart-canvas" data-spending-chart>${donutChartSVG(spendingSegments, {
-                    centerLabel: "",
-                    centerValue: "",
-                    valueFormatter: (value) => formatINR(value),
-                    showLegend: true,
-                  })}</div>
-                  <div class="chart-legend" data-spending-legend>
-                    ${topCategory ? `<span class="pill pill-accent">Top ${escapeHtml(topCategory.label)} ${escapeHtml(formatINR(topCategory.value))}</span>` : ""}
-                    <span class="pill">Top 3 cover ${Math.round((spendingSegments.slice(0, 3).reduce((sum, item) => sum + Number(item.value || 0), 0) / Math.max(spendingTotal, 1)) * 100)}%</span>
+              hasMeaningfulCategories(spendingSegments)
+                ? `
+                  <div class="chart-shell">
+                    <div class="chart-canvas" data-spending-chart>${donutChartSVG(spendingSegments, {
+                      centerLabel: "",
+                      centerValue: "",
+                      valueFormatter: (value) => formatINR(value),
+                      showLegend: true,
+                    })}</div>
+                    <div class="chart-legend" data-spending-legend>
+                      ${topCategory ? `<span class="pill pill-accent">Top ${escapeHtml(topCategory.label)} ${escapeHtml(formatINR(topCategory.value))}</span>` : ""}
+                      <span class="pill">Top 3 cover ${Math.round((spendingSegments.slice(0, 3).reduce((sum, item) => sum + Number(item.value || 0), 0) / Math.max(spendingTotal, 1)) * 100)}%</span>
+                    </div>
                   </div>
-                </div>
-              `,
+                `
+                : chartEmptyState({
+                    title: "No category data yet",
+                    description: "Once you log a few expenses, Finly will group them here so you can spot spending patterns fast.",
+                    actionLabel: "Log Expense",
+                    actionTarget: "transactions",
+                    icon: "◔",
+                  }),
             )}
           </section>
           <section class="two-up">
@@ -1816,6 +1854,8 @@ export const userWorkspace = {
         const categoryTotal = Math.max(categoryTotalRaw, Number(overview.total_expense ?? 0), 1);
         const monthlyRows = monthlySnapshotRows(summary);
         const trend = buildReportTrendSeries(monthlyRows, trendMode);
+        const hasTrendData = hasMeaningfulSeries(trend);
+        const hasCategoryData = hasMeaningfulCategories(categorySeries);
         const trendDelta = recentSeriesTrend(trend, trendMode === "expense" ? "down" : "up");
         const incomeTrend = monthlyTypeTrend(summary, "income", "up");
         const expenseTrend = monthlyTypeTrend(summary, "expense", "down");
@@ -1846,9 +1886,9 @@ export const userWorkspace = {
             ${badge(`Range: ${USER_REPORT_RANGE_LABELS[rangeKey] ?? USER_REPORT_RANGE_LABELS.all_time}`, "accent")}
           </section>
           <section class="cards-grid">
-            ${metricCard({ label: "Net Position", value: formatINR(overview.balance ?? 0), trend: trendDelta, hint: "Income less expense", icon: "≈" })}
-            ${metricCard({ label: "Inflow", value: formatINR(overview.total_income ?? 0), trend: incomeTrend, hint: "Total credits", icon: "↑" })}
-            ${metricCard({ label: "Outflow", value: formatINR(overview.total_expense ?? 0), trend: expenseTrend, hint: "Total debits", icon: "↓" })}
+            ${metricCard({ label: "Net Position", value: formatINR(overview.balance ?? 0), trend: hasTrendData ? trendDelta : { label: "Waiting", kind: "up" }, hint: hasTrendData ? "Income less expense" : "Add transactions to generate reporting insights", icon: "≈" })}
+            ${metricCard({ label: "Inflow", value: formatINR(overview.total_income ?? 0), trend: hasTrendData ? incomeTrend : { label: "Waiting", kind: "up" }, hint: hasTrendData ? "Total credits" : "Credits will appear once income is recorded", icon: "↑" })}
+            ${metricCard({ label: "Outflow", value: formatINR(overview.total_expense ?? 0), trend: hasTrendData ? expenseTrend : { label: "Waiting", kind: "down" }, hint: hasTrendData ? "Total debits" : "Debits will appear once expenses are recorded", icon: "↓" })}
           </section>
           <section class="analysis-grid">
             ${panel(
@@ -1858,7 +1898,15 @@ export const userWorkspace = {
                 : trendMode === "expense"
                   ? "Monthly outflow across the selected range"
                   : "Rolling movement across the selected range",
-              `<div class="chart-shell"><div class="chart-canvas">${lineChartSVG(trend, { stroke: "#34d399" })}</div><div class="chart-legend"><span class="pill">${escapeHtml(USER_REPORT_TREND_LABELS[trendMode] || "Net")} trend</span>${extrema.high ? `<span class="pill">Peak ${escapeHtml(extrema.high.label)} ${escapeHtml(formatINR(extrema.high.value))}</span>` : ""}${extrema.low ? `<span class="pill">Low ${escapeHtml(extrema.low.label)} ${escapeHtml(formatINR(extrema.low.value))}</span>` : ""}</div></div>`,
+              hasTrendData
+                ? `<div class="chart-shell"><div class="chart-canvas">${lineChartSVG(trend, { stroke: "#34d399" })}</div><div class="chart-legend"><span class="pill">${escapeHtml(USER_REPORT_TREND_LABELS[trendMode] || "Net")} trend</span>${extrema.high ? `<span class="pill">Peak ${escapeHtml(extrema.high.label)} ${escapeHtml(formatINR(extrema.high.value))}</span>` : ""}${extrema.low ? `<span class="pill">Low ${escapeHtml(extrema.low.label)} ${escapeHtml(formatINR(extrema.low.value))}</span>` : ""}</div></div>`
+                : chartEmptyState({
+                    title: "No reporting trend yet",
+                    description: "Once transactions are recorded, Finly will plot monthly movement here for the selected range.",
+                    actionLabel: "Add Transaction",
+                    actionTarget: "transactions",
+                    icon: "↗",
+                  }),
               `
                 ${button("Net", { variant: trendMode === "net" ? "primary" : "secondary", attrs: 'data-action="set-report-trend-mode" data-mode="net"' })}
                 ${button("Inflow", { variant: trendMode === "income" ? "primary" : "secondary", attrs: 'data-action="set-report-trend-mode" data-mode="income"' })}
@@ -1868,12 +1916,20 @@ export const userWorkspace = {
             ${panel(
               "Spending mix",
               "By category share",
-              `<div class="chart-shell"><div class="chart-canvas">${donutChartSVG(categorySeries, {
-                centerLabel: "",
-                centerValue: "",
-                valueFormatter: (value) => formatINR(value),
-                showLegend: true,
-              })}</div><div class="chart-legend">${topCategory ? `<span class="pill pill-accent">Top ${escapeHtml(topCategory.label)} ${escapeHtml(formatINR(topCategory.value))}</span>` : ""}<span class="pill">Top 3 cover ${top3Coverage}%</span></div></div>`,
+              hasCategoryData
+                ? `<div class="chart-shell"><div class="chart-canvas">${donutChartSVG(categorySeries, {
+                    centerLabel: "",
+                    centerValue: "",
+                    valueFormatter: (value) => formatINR(value),
+                    showLegend: true,
+                  })}</div><div class="chart-legend">${topCategory ? `<span class="pill pill-accent">Top ${escapeHtml(topCategory.label)} ${escapeHtml(formatINR(topCategory.value))}</span>` : ""}<span class="pill">Top 3 cover ${top3Coverage}%</span></div></div>`
+                : chartEmptyState({
+                    title: "No spending mix yet",
+                    description: "Category share becomes useful once multiple expenses have been captured in the selected range.",
+                    actionLabel: "Log Expense",
+                    actionTarget: "transactions",
+                    icon: "◔",
+                  }),
             )}
           </section>
           <section class="two-up">
@@ -1881,9 +1937,9 @@ export const userWorkspace = {
               "Category mix",
               "Ranked breakdown",
               `
-                <div class="list">
-                  ${categorySeries
-                    .slice(0, 6)
+                 ${hasCategoryData ? `<div class="list">
+                   ${categorySeries
+                     .slice(0, 6)
                     .map(
                       (item) => `
                         <article class="list-item">
@@ -1896,8 +1952,8 @@ export const userWorkspace = {
                       `,
                     )
                     .join("")}
-                </div>
-              `,
+                 </div>` : emptyState("No category ranking yet", "Your top categories will appear here once reportable spending exists.", button("Log Expense", { variant: "primary", attrs: 'data-go="transactions"' }), "◔")}
+               `,
             )}
             ${panel(
               "Highlights",
@@ -2017,10 +2073,10 @@ export const userWorkspace = {
               : `${button("Create budget", { variant: "secondary", attrs: 'disabled aria-disabled="true" title="No categories available"' })}`,
           )}
           <section class="cards-grid">
-            ${metricCard({ label: "Total budgeted", value: formatINR(totalBudgeted), trend: { value: 6, kind: "up" }, hint: "All active plans", icon: "↦" })}
-            ${metricCard({ label: "Spent", value: formatINR(totalSpent), trend: { value: 9, kind: "down" }, hint: "Drawn from actuals", icon: "↧" })}
-            ${metricCard({ label: "Remaining", value: formatINR(totalRemaining), trend: { value: 3, kind: "up" }, hint: "Still available", icon: "↺" })}
-            ${metricCard({ label: "Active plans", value: String(budgets.length), trend: { value: 2, kind: "up" }, hint: "Tracked categories", icon: "◌" })}
+            ${metricCard({ label: "Total budgeted", value: formatINR(totalBudgeted), trend: budgets.length ? { label: "Planned", kind: "up" } : { label: "Create one", kind: "up" }, hint: budgets.length ? "All active plans" : "Set a first target to start planning", icon: "↦" })}
+            ${metricCard({ label: "Spent", value: formatINR(totalSpent), trend: budgets.length ? { label: "Tracked", kind: "down" } : { label: "Waiting", kind: "down" }, hint: budgets.length ? "Drawn from actuals" : "Spending will sync after activity starts", icon: "↧" })}
+            ${metricCard({ label: "Remaining", value: formatINR(totalRemaining), trend: budgets.length ? { label: "Available", kind: "up" } : { label: "Waiting", kind: "up" }, hint: budgets.length ? "Still available" : "Remaining budget appears after setup", icon: "↺" })}
+            ${metricCard({ label: "Active plans", value: String(budgets.length), trend: budgets.length ? { label: "Tracked", kind: "up" } : { label: "None yet", kind: "up" }, hint: "Tracked categories", icon: "◌" })}
           </section>
           <section class="panel">
             <div class="panel-header">
@@ -2336,10 +2392,10 @@ export const userWorkspace = {
         return `
           ${hero("Profile and security", "Manage your account and password from one place.")}
           <section class="cards-grid">
-            ${metricCard({ label: "Role", value: String(profile.role ?? "user").toUpperCase(), trend: { value: 0, kind: "up" }, hint: "Current workspace access", icon: "ID" })}
-            ${metricCard({ label: "Status", value: String(profile.status ?? "active"), trend: { value: 0, kind: "up" }, hint: "Account standing", icon: "✓" })}
-            ${metricCard({ label: "Member since", value: formatDate(profile.created_at ?? new Date()), trend: { value: 0, kind: "up" }, hint: "Account creation date", icon: "⌁" })}
-            ${metricCard({ label: "Email", value: String(profile.email ?? "—"), trend: { value: 0, kind: "up" }, hint: "Login identity", icon: "@" })}
+            ${metricCard({ label: "Role", value: String(profile.role ?? "user").toUpperCase(), trend: { label: "Access", kind: "up" }, hint: "Current workspace access", icon: "ID" })}
+            ${metricCard({ label: "Status", value: String(profile.status ?? "active"), trend: { label: "Healthy", kind: "up" }, hint: "Account standing", icon: "✓" })}
+            ${metricCard({ label: "Member since", value: formatDate(profile.created_at ?? new Date()), trend: { label: "Established", kind: "up" }, hint: "Account creation date", icon: "⌁" })}
+            ${metricCard({ label: "Email", value: String(profile.email ?? "—"), trend: { label: "Verified", kind: "up" }, hint: "Login identity", icon: "@" })}
           </section>
           ${profileForm(profile)}
         `;

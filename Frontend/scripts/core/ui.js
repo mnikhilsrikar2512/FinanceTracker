@@ -117,19 +117,31 @@ export function textareaField({ label, name, value = "", placeholder = "", rows 
   `;
 }
 
-export function cardList(items, emptyLabel = "Nothing to show yet.", emptyAction = "") {
+export function cardList(items, emptyLabel = "Nothing to show yet.", emptyAction = "", emptyIcon = "◎") {
   if (!items?.length) {
-    return `<div class="empty-state"><h4>Nothing here yet</h4><p>${escapeHtml(emptyLabel)}</p>${emptyAction}</div>`;
+    return `
+      <div class="empty-state">
+        <span class="empty-state-icon" aria-hidden="true">${escapeHtml(emptyIcon)}</span>
+        <div class="empty-state-copy">
+          <h4>Nothing here yet</h4>
+          <p>${escapeHtml(emptyLabel)}</p>
+        </div>
+        ${emptyAction ? `<div class="empty-state-actions">${emptyAction}</div>` : ""}
+      </div>
+    `;
   }
   return `<div class="list">${items.join("")}</div>`;
 }
 
-export function emptyState(title, description, action = "") {
+export function emptyState(title, description, action = "", icon = "◎") {
   return `
     <div class="empty-state">
-      <h4>${escapeHtml(title)}</h4>
-      <p>${escapeHtml(description)}</p>
-      ${action}
+      <span class="empty-state-icon" aria-hidden="true">${escapeHtml(icon)}</span>
+      <div class="empty-state-copy">
+        <h4>${escapeHtml(title)}</h4>
+        <p>${escapeHtml(description)}</p>
+      </div>
+      ${action ? `<div class="empty-state-actions">${action}</div>` : ""}
     </div>
   `;
 }

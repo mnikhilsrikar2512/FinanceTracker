@@ -13,6 +13,7 @@ import time
 
 import app.models
 from app.routers import analytics_router
+from app.routers.chatbot_proxy_router import router as chatbot_proxy_router
 
 from app.routers import user_router, category_router, transaction_router, log_router, auth_router, admin_router, budget_router, assistant_router
 from fastapi.exceptions import RequestValidationError
@@ -84,11 +85,17 @@ api_v1.include_router(budget_router.router)
 api_v1.include_router(assistant_router.router)
 app.include_router(api_v1)
 
+# Expose chatbot proxy endpoints under /api/chatbot/... for proxying to local backend
+app.include_router(chatbot_proxy_router)
+
 """API versioning middleware and routes."""
 class APIVersionRewriteMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         path = request.url.path
         passthrough_paths = {"/", "/health", "/login", "/app", "/admin", "/docs", "/openapi.json", "/redoc"}
+        # Do not rewrite chatbot proxy paths to keep /api/chatbot/... stable
+        if path.startswith("/api/chatbot"):
+            return await call_next(request)
         if path in passthrough_paths:
             return await call_next(request)
         legacy_prefixes = (
@@ -246,6 +253,8 @@ def admin_page_html():
 
 
 if FRONTEND_DIR.exists():
+    # Serve frontend assets from the same container
+    app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIR / "assets")), name="frontend-assets")
     app.mount("/scripts", StaticFiles(directory=str(FRONTEND_DIR / "scripts")), name="frontend-scripts")
     app.mount("/styles", StaticFiles(directory=str(FRONTEND_DIR / "styles")), name="frontend-styles")
 else:

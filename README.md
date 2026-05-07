@@ -36,6 +36,7 @@ Finly helps teams and individuals:
 ### User Workspace
 
 - dashboard KPIs and trends
+- guided empty states for zero-data modules
 - transaction management with filters and bulk actions
 - reporting center (range + trend modes)
 - budget planner and progress tracking
@@ -45,6 +46,7 @@ Finly helps teams and individuals:
 ### Admin Workspace
 
 - command center metrics
+- guided empty states for zero-data analytics modules
 - users directory and account controls
 - transaction oversight tools
 - category management
@@ -120,6 +122,5 @@ This command will:
 
 - Currency presentation in UI and exports is INR-focused.
 - If static changes do not appear, hard refresh (`Cmd + Shift + R`).
-- To proxy assistant requests to external chatbot API, set `ASSISTANT_API_BASE_URL` and choose auth via `ASSISTANT_API_AUTH_MODE` (`website_jwt`, `token`, `login`, `dev`, `auto`).
-- Finly JWT now includes `tenant_id`, `user_id`, and `role` claims (with `JWT_TENANT_ID`) for external chatbot JWT passthrough.
-- External chatbot integration calls `/v1/chat` directly (session auto-created by chatbot API when omitted).
+- Frontend workspace modules use lightweight empty states with text and action buttons when there is no meaningful data yet.
+- The separate frontend chatbot widget has been removed from the user and admin workspaces.

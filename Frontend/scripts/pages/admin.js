@@ -1,5 +1,5 @@
-import { apiRequest, isDemoMode, normalizeDetail, normalizeList } from "../core/api.js";
-import { donutChartSVG, lineChartSVG } from "../core/charts.js";
+import { apiRequest, isDemoMode, normalizeDetail, normalizeList } from "../core/api.js?v=20260507j";
+import { donutChartSVG, lineChartSVG } from "../core/charts.js?v=20260507j";
 import {
   badge,
   button,
@@ -17,10 +17,10 @@ import {
   statusBadge,
   table,
   timelineItem,
-} from "../core/ui.js";
-import { escapeHtml } from "../core/dom.js";
-import { downloadCsv, downloadFinancialReportPdf } from "../core/export.js";
-import { formatDate, formatDateTime, formatINR } from "../core/format.js";
+} from "../core/ui.js?v=20260507j";
+import { escapeHtml } from "../core/dom.js?v=20260507j";
+import { downloadCsv, downloadFinancialReportPdf } from "../core/export.js?v=20260507j";
+import { formatDate, formatDateTime, formatINR } from "../core/format.js?v=20260507j";
 import {
   buildFallbackAdminAnalytics,
   buildFallbackAdminDashboard,
@@ -30,7 +30,7 @@ import {
   mockProfile,
   mockTransactions,
   mockUsers,
-} from "../data/mock.js";
+} from "../data/mock.js?v=20260507j";
 
 const ADMIN_USERS_FILTER_KEY = "finly.adminUsers.filters";
 const ADMIN_TXN_FILTER_KEY = "finly.adminTransactions.filters";
@@ -42,6 +42,23 @@ const ADMIN_REPORT_TREND_LABELS = {
   income: "Inflow",
   expense: "Outflow",
 };
+
+function dashboardEmptyState(title, description, actionLabel, actionTarget, icon = "◎") {
+  return emptyState(
+    title,
+    description,
+    button(actionLabel, { variant: "primary", attrs: `data-go="${actionTarget}"` }),
+    icon,
+  );
+}
+
+function hasMeaningfulSeries(series = []) {
+  return Array.isArray(series) && series.some((item) => Math.abs(Number(item?.value ?? 0)) > 0);
+}
+
+function hasMeaningfulCategories(series = []) {
+  return Array.isArray(series) && series.some((item) => Number(item?.value ?? 0) > 0);
+}
 
 function safeStorageGet(key, fallback = "") {
   try {
@@ -1082,19 +1099,55 @@ export const adminWorkspace = {
             ${metricCard({ label: "System txns", value: String(stats.total_transactions ?? transactions.length), trend: activityTrend, hint: "Recorded transactions", icon: "Σ" })}
           </section>
           <section class="analysis-grid">
-            ${panel("Platform activity", "Recent movement", `<div class="chart-shell"><div class="chart-canvas">${lineChartSVG(activity, { stroke: "#a78bfa" })}</div><div class="chart-legend"><span class="pill">Net movement</span>${activityExtrema.high ? `<span class="pill">Peak ${escapeHtml(activityExtrema.high.label)} ${escapeHtml(formatINR(activityExtrema.high.value))}</span>` : ""}${activityExtrema.low ? `<span class="pill">Low ${escapeHtml(activityExtrema.low.label)} ${escapeHtml(formatINR(activityExtrema.low.value))}</span>` : ""}</div></div>`)}
-            ${panel("Category mix", "Expense distribution", `<div class="chart-shell"><div class="chart-canvas">${donutChartSVG(categories, {
-              centerLabel: "",
-              centerValue: "",
-              valueFormatter: (value) => formatINR(value),
-            })}</div><div class="chart-legend"><span class="pill">Top 3 cover ${coverage}%</span></div></div>`)}
+            ${panel(
+              "Platform activity",
+              "Recent movement",
+              activity.length
+                ? `<div class="chart-shell"><div class="chart-canvas">${lineChartSVG(activity, { stroke: "#a78bfa" })}</div><div class="chart-legend"><span class="pill">Net movement</span>${activityExtrema.high ? `<span class="pill">Peak ${escapeHtml(activityExtrema.high.label)} ${escapeHtml(formatINR(activityExtrema.high.value))}</span>` : ""}${activityExtrema.low ? `<span class="pill">Low ${escapeHtml(activityExtrema.low.label)} ${escapeHtml(formatINR(activityExtrema.low.value))}</span>` : ""}</div></div>`
+                : dashboardEmptyState(
+                    "No activity yet",
+                    "Platform movement will appear here after users start creating transactions and budgets.",
+                    "View Users",
+                    "users",
+                    "↗",
+                  ),
+            )}
+            ${panel(
+              "Category mix",
+              "Expense distribution",
+              categories.length
+                ? `<div class="chart-shell"><div class="chart-canvas">${donutChartSVG(categories, {
+                    centerLabel: "",
+                    centerValue: "",
+                    valueFormatter: (value) => formatINR(value),
+                  })}</div><div class="chart-legend"><span class="pill">Top 3 cover ${coverage}%</span></div></div>`
+                : dashboardEmptyState(
+                    "No category mix available",
+                    "Expense categories will populate here when the platform starts capturing categorized transactions.",
+                    "Open Reports",
+                    "reports",
+                    "◔",
+                  ),
+            )}
           </section>
           <section class="three-up">
-            ${panel("User composition", "Active, blocked, and admin split", `<div class="chart-canvas">${donutChartSVG(composition, {
-              centerLabel: "",
-              centerValue: "",
-              valueFormatter: (value) => String(value),
-            })}</div>`)}
+            ${panel(
+              "User composition",
+              "Active, blocked, and admin split",
+              composition.length
+                ? `<div class="chart-canvas">${donutChartSVG(composition, {
+                    centerLabel: "",
+                    centerValue: "",
+                    valueFormatter: (value) => String(value),
+                  })}</div>`
+                : dashboardEmptyState(
+                    "No user data yet",
+                    "Once accounts start using the system, this module will show how your user base is split.",
+                    "Go to Users",
+                    "users",
+                    "◌",
+                  ),
+            )}
             ${panel(
               "User directory",
               "Recent accounts",
@@ -1114,6 +1167,9 @@ export const adminWorkspace = {
                         </div>
                       </article>
                     `),
+                    "Newly created accounts will show up here as soon as users start signing in.",
+                    button("View Users", { variant: "primary", attrs: 'data-go="users"' }),
+                    "◌",
                   )}
                 </div>
               `,
@@ -1135,6 +1191,9 @@ export const adminWorkspace = {
                         tone: item.level ?? item.severity ?? "neutral",
                       }),
                     ),
+                    "Audit and product events will appear here after the platform starts generating activity.",
+                    button("Open Logs", { variant: "primary", attrs: 'data-go="logs"' }),
+                    "!",
                   )}
                 </div>
               `,
@@ -2036,6 +2095,8 @@ export const adminWorkspace = {
         const trendMode = data.trendMode ?? readAdminReportTrendMode();
         const trend = adminTrendSeriesByMode(analytics, trendMode);
         const categories = adminCategorySeries(analytics);
+        const hasTrendData = hasMeaningfulSeries(trend);
+        const hasCategoryData = hasMeaningfulCategories(categories);
         const categoryTotal = categories.reduce((sum, entry) => sum + Number(entry.value || 0), 0);
         const balanceTrend = recentSeriesTrend(trend, Number(analytics.balance ?? 0) >= 0 ? "up" : "down");
         const incomeTrend = monthlyTypeTrend(analytics.monthly_summary ?? [], "income", "up");
@@ -2045,27 +2106,29 @@ export const adminWorkspace = {
         return `
           ${hero("Analytics", "Track net position, inflow, outflow, and category mix.")}
           <section class="cards-grid">
-            ${metricCard({ label: "Net position", value: formatINR(analytics.balance ?? 0), trend: balanceTrend, hint: "System level balance", icon: "Σ" })}
-            ${metricCard({ label: "Inflow", value: formatINR(analytics.total_income ?? 0), trend: incomeTrend, hint: "Credits across the platform", icon: "↑" })}
-            ${metricCard({ label: "Outflow", value: formatINR(analytics.total_expense ?? 0), trend: expenseTrend, hint: "Debits and expenses", icon: "↓" })}
+            ${metricCard({ label: "Net position", value: formatINR(analytics.balance ?? 0), trend: hasTrendData ? balanceTrend : { label: "Waiting", kind: "up" }, hint: hasTrendData ? "System level balance" : "Activity will appear after platform usage begins", icon: "Σ" })}
+            ${metricCard({ label: "Inflow", value: formatINR(analytics.total_income ?? 0), trend: hasTrendData ? incomeTrend : { label: "Waiting", kind: "up" }, hint: hasTrendData ? "Credits across the platform" : "Credits will appear once income is recorded", icon: "↑" })}
+            ${metricCard({ label: "Outflow", value: formatINR(analytics.total_expense ?? 0), trend: hasTrendData ? expenseTrend : { label: "Waiting", kind: "down" }, hint: hasTrendData ? "Debits and expenses" : "Debits will appear once expense activity begins", icon: "↓" })}
           </section>
           <section class="analysis-grid">
             ${panel(
               "Trend",
               trendMode === "income" ? "Monthly inflow" : trendMode === "expense" ? "Monthly outflow" : "System movement",
-              `<div class="chart-shell"><div class="chart-canvas">${lineChartSVG(trend, { stroke: "#7dd3fc" })}</div><div class="chart-legend"><span class="pill">${escapeHtml(ADMIN_REPORT_TREND_LABELS[trendMode] || "Net")} trend</span>${trendExtrema.high ? `<span class="pill">Peak ${escapeHtml(trendExtrema.high.label)} ${escapeHtml(formatINR(trendExtrema.high.value))}</span>` : ""}${trendExtrema.low ? `<span class="pill">Low ${escapeHtml(trendExtrema.low.label)} ${escapeHtml(formatINR(trendExtrema.low.value))}</span>` : ""}</div></div>`,
+              hasTrendData
+                ? `<div class="chart-shell"><div class="chart-canvas">${lineChartSVG(trend, { stroke: "#7dd3fc" })}</div><div class="chart-legend"><span class="pill">${escapeHtml(ADMIN_REPORT_TREND_LABELS[trendMode] || "Net")} trend</span>${trendExtrema.high ? `<span class="pill">Peak ${escapeHtml(trendExtrema.high.label)} ${escapeHtml(formatINR(trendExtrema.high.value))}</span>` : ""}${trendExtrema.low ? `<span class="pill">Low ${escapeHtml(trendExtrema.low.label)} ${escapeHtml(formatINR(trendExtrema.low.value))}</span>` : ""}</div></div>`
+                : dashboardEmptyState("No platform trend yet", "System movement will render here once enough financial activity exists across users.", "View Users", "users", "↗"),
               `
                 ${button("Net", { variant: trendMode === "net" ? "primary" : "secondary", attrs: 'data-action="set-admin-report-trend-mode" data-mode="net"' })}
                 ${button("Inflow", { variant: trendMode === "income" ? "primary" : "secondary", attrs: 'data-action="set-admin-report-trend-mode" data-mode="income"' })}
                 ${button("Outflow", { variant: trendMode === "expense" ? "primary" : "secondary", attrs: 'data-action="set-admin-report-trend-mode" data-mode="expense"' })}
               `,
             )}
-            ${panel("Category mix", "Usage distribution", `<div class="chart-shell"><div class="chart-canvas">${donutChartSVG(categories, {
+            ${panel("Category mix", "Usage distribution", hasCategoryData ? `<div class="chart-shell"><div class="chart-canvas">${donutChartSVG(categories, {
               centerLabel: "",
               centerValue: "",
               valueFormatter: (value) => formatINR(value),
               showLegend: true,
-            })}</div><div class="chart-legend"><span class="pill">Top 3 cover ${coverage}%</span></div></div>`)}
+            })}</div><div class="chart-legend"><span class="pill">Top 3 cover ${coverage}%</span></div></div>` : dashboardEmptyState("No category usage yet", "This category view will populate after the platform records categorized financial activity.", "Open Reports", "reports", "◔"))}
           </section>
           <section class="two-up">
             ${panel("Category summary", "Top categories by usage", `
@@ -2203,10 +2266,10 @@ export const adminWorkspace = {
             ``,
           )}
           <section class="cards-grid">
-            ${metricCard({ label: "Events", value: String(stats.total ?? meta.total ?? logs.length), trend: { value: 0, kind: "up" }, hint: "Total log items", icon: "#" })}
-            ${metricCard({ label: "This page", value: String(logs.length), trend: { value: 0, kind: "up" }, hint: "Rows in current view", icon: "↻" })}
-            ${metricCard({ label: "Warnings", value: String(logLevelCount(stats, "warning") || logs.filter((item) => String(item.level ?? item.severity).toLowerCase() === "warning").length), trend: { value: 0, kind: "down" }, hint: "Items to inspect", icon: "!" })}
-            ${metricCard({ label: "Errors", value: String(logLevelCount(stats, "error") || logs.filter((item) => String(item.level ?? item.severity).toLowerCase() === "error").length), trend: { value: 0, kind: "down" }, hint: "Hard failures", icon: "×" })}
+            ${metricCard({ label: "Events", value: String(stats.total ?? meta.total ?? logs.length), trend: { label: "Observed", kind: "up" }, hint: "Total log items", icon: "#" })}
+            ${metricCard({ label: "This page", value: String(logs.length), trend: { label: "Visible", kind: "up" }, hint: "Rows in current view", icon: "↻" })}
+            ${metricCard({ label: "Warnings", value: String(logLevelCount(stats, "warning") || logs.filter((item) => String(item.level ?? item.severity).toLowerCase() === "warning").length), trend: { label: "Review", kind: "down" }, hint: "Items to inspect", icon: "!" })}
+            ${metricCard({ label: "Errors", value: String(logLevelCount(stats, "error") || logs.filter((item) => String(item.level ?? item.severity).toLowerCase() === "error").length), trend: { label: "Critical", kind: "down" }, hint: "Hard failures", icon: "×" })}
           </section>
           <section class="panel">
             <div class="panel-header">
@@ -2386,10 +2449,10 @@ export const adminWorkspace = {
         return `
           ${hero("Admin profile", "Keep the system account current and secure.")}
           <section class="cards-grid">
-            ${metricCard({ label: "Role", value: String(profile.role ?? "admin").toUpperCase(), trend: { value: 0, kind: "up" }, hint: "Workspace identity", icon: "ID" })}
-            ${metricCard({ label: "Status", value: String(profile.status ?? "active"), trend: { value: 0, kind: "up" }, hint: "Access state", icon: "✓" })}
-            ${metricCard({ label: "Joined", value: formatDate(profile.created_at ?? new Date()), trend: { value: 0, kind: "up" }, hint: "Account age", icon: "⌁" })}
-            ${metricCard({ label: "Email", value: String(profile.email ?? "—"), trend: { value: 0, kind: "up" }, hint: "Admin login", icon: "@" })}
+            ${metricCard({ label: "Role", value: String(profile.role ?? "admin").toUpperCase(), trend: { label: "Access", kind: "up" }, hint: "Workspace identity", icon: "ID" })}
+            ${metricCard({ label: "Status", value: String(profile.status ?? "active"), trend: { label: "Healthy", kind: "up" }, hint: "Access state", icon: "✓" })}
+            ${metricCard({ label: "Joined", value: formatDate(profile.created_at ?? new Date()), trend: { label: "Established", kind: "up" }, hint: "Account age", icon: "⌁" })}
+            ${metricCard({ label: "Email", value: String(profile.email ?? "—"), trend: { label: "Verified", kind: "up" }, hint: "Admin login", icon: "@" })}
           </section>
           ${profileForm(profile)}
         `;
